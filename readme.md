@@ -97,3 +97,4 @@ createLease: { landlordAddr, tenantAddr, terms, rent, currency: “USDA”, depo
 recordPayment: { leaseId, payer, amount, currency: “USDA”, chainId, txHash }
 
 All successful mutations trigger a write to Arweave and return arTxId for user verification# rental-agent
+# rental-agent

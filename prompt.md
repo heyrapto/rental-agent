@@ -1,7 +1,3 @@
-Here’s a **well-detailed engineering prompt in Markdown (.md)** you can directly use with an AI agent (like AO, OpenAI, or any contract-aware coding assistant). It’s structured so the AI can **research, plan, and implement both the contract and agent side**, ensuring **backend + smart contract codebase** is solid, production-ready, and testable without errors.
-
----
-
 # 🏡 Rental Contract AO Agent — Full Spec Prompt
 
 ## 🎯 Objective
