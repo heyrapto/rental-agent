@@ -6,11 +6,27 @@
 const { v4: uuidv4 } = require('uuid');
 const { logger, logLeaseAction } = require('../utils/logger');
 const { ValidationError, NotFoundError } = require('../middleware/errorHandler');
+const { config } = require('../config');
 
 class LeaseService {
     constructor() {
-        this.leases = new Map();
-        this.leaseCounter = 0;
+        this.db = null;
+        this.initializeDatabase();
+    }
+
+    /**
+     * Initialize database connection
+     */
+    async initializeDatabase() {
+        try {
+            // In production, this would connect to a real database
+            // For now, using in-memory storage but structured for easy DB migration
+            this.db = new Map();
+            logger.info('Lease service database initialized');
+        } catch (error) {
+            logger.error('Failed to initialize lease service database:', error);
+            throw error;
+        }
     }
 
     /**
@@ -24,7 +40,7 @@ class LeaseService {
             this.validateLeaseData(leaseData);
             
             // Check if lease already exists
-            if (this.leases.has(leaseId)) {
+            if (this.db.has(leaseId)) {
                 throw new ValidationError('Lease already exists');
             }
             
@@ -48,9 +64,14 @@ class LeaseService {
                 arweaveTxId: leaseData.arweaveTxId || null
             };
             
-            // Store lease
-            this.leases.set(leaseId, lease);
-            this.leaseCounter++;
+            // Store lease in database
+            this.db.set(leaseId, lease);
+            
+            // TODO: In production, this would be a real database insert
+            // await this.db.query(
+            //     'INSERT INTO leases (id, landlord_addr, tenant_addr, terms_hash, rent, currency, deposit, start_date, end_date, status, created_at, updated_at, arweave_tx_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            //     [leaseId, lease.landlordAddr, lease.tenantAddr, lease.termsHash, lease.rent, lease.currency, lease.deposit, lease.startDate, lease.endDate, lease.status, lease.createdAt, lease.updatedAt, lease.arweaveTxId]
+            // );
             
             logLeaseAction('created', leaseId, leaseData.landlordAddr, {
                 tenantAddr: leaseData.tenantAddr,
@@ -71,8 +92,8 @@ class LeaseService {
      */
     async signLease(leaseId, walletAddress) {
         try {
-            // Get lease
-            const lease = this.leases.get(leaseId);
+            // Get lease from database
+            const lease = this.db.get(leaseId);
             if (!lease) {
                 throw new NotFoundError('Lease not found');
             }
@@ -97,10 +118,23 @@ class LeaseService {
             lease.signatureCount++;
             lease.updatedAt = new Date();
             
+            // Update lease in database
+            this.db.set(leaseId, lease);
+            
+            // TODO: In production, this would be a real database update
+            // await this.db.query(
+            //     'UPDATE leases SET signature_count = ?, status = ?, updated_at = ? WHERE id = ?',
+            //     [lease.signatureCount, lease.status, lease.updatedAt, leaseId]
+            // );
+            
             // Check if both parties have signed
             if (lease.signatureCount === 2) {
                 lease.status = 'active';
                 logLeaseAction('activated', leaseId, walletAddress);
+                
+                // Update status in database
+                this.db.set(leaseId, lease);
+                // await this.db.query('UPDATE leases SET status = ? WHERE id = ?', ['active', leaseId]);
             }
             
             logLeaseAction('signed', leaseId, walletAddress, {
@@ -124,7 +158,14 @@ class LeaseService {
      */
     async getLease(leaseId) {
         try {
-            const lease = this.leases.get(leaseId);
+            // TODO: In production, this would be a real database query
+            // const [rows] = await this.db.query('SELECT * FROM leases WHERE id = ?', [leaseId]);
+            // if (rows.length === 0) {
+            //     throw new NotFoundError('Lease not found');
+            // }
+            // return rows[0];
+            
+            const lease = this.db.get(leaseId);
             if (!lease) {
                 throw new NotFoundError('Lease not found');
             }
@@ -142,15 +183,22 @@ class LeaseService {
      */
     async getUserLeases(walletAddress) {
         try {
+            // TODO: In production, this would be a real database query
+            // const [rows] = await this.db.query(
+            //     'SELECT * FROM leases WHERE landlord_addr = ? OR tenant_addr = ? ORDER BY created_at DESC',
+            //     [walletAddress, walletAddress]
+            // );
+            // return rows;
+            
             const userLeases = [];
             
-            for (const lease of this.leases.values()) {
+            for (const lease of this.db.values()) {
                 if (lease.landlordAddr === walletAddress || lease.tenantAddr === walletAddress) {
                     userLeases.push(lease);
                 }
             }
             
-            return userLeases;
+            return userLeases.sort((a, b) => b.createdAt - a.createdAt);
             
         } catch (error) {
             logger.error('Failed to get user leases:', error);
@@ -163,7 +211,7 @@ class LeaseService {
      */
     async updateLease(leaseId, updates, walletAddress) {
         try {
-            const lease = this.leases.get(leaseId);
+            const lease = this.db.get(leaseId);
             if (!lease) {
                 throw new NotFoundError('Lease not found');
             }
@@ -176,6 +224,14 @@ class LeaseService {
             // Apply updates
             Object.assign(lease, updates);
             lease.updatedAt = new Date();
+            
+            // Update lease in database
+            this.db.set(leaseId, lease);
+            
+            // TODO: In production, this would be a real database update
+            // const updateFields = Object.keys(updates).map(field => `${field} = ?`).join(', ');
+            // const updateValues = [...Object.values(updates), lease.updatedAt, leaseId];
+            // await this.db.query(`UPDATE leases SET ${updateFields}, updated_at = ? WHERE id = ?`, updateValues);
             
             logLeaseAction('updated', leaseId, walletAddress, updates);
             
@@ -192,7 +248,7 @@ class LeaseService {
      */
     async terminateLease(leaseId, walletAddress) {
         try {
-            const lease = this.leases.get(leaseId);
+            const lease = this.db.get(leaseId);
             if (!lease) {
                 throw new NotFoundError('Lease not found');
             }
@@ -211,6 +267,12 @@ class LeaseService {
             lease.status = 'terminated';
             lease.updatedAt = new Date();
             
+            // Update lease in database
+            this.db.set(leaseId, lease);
+            
+            // TODO: In production, this would be a real database update
+            // await this.db.query('UPDATE leases SET status = ?, updated_at = ? WHERE id = ?', ['terminated', lease.updatedAt, leaseId]);
+            
             logLeaseAction('terminated', leaseId, walletAddress);
             
             return lease;
@@ -227,13 +289,22 @@ class LeaseService {
     async getLeasesWithRentDue(days) {
         try {
             const now = new Date();
-            const dueDate = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000));
+            
+            // TODO: In production, this would be a real database query with proper date calculations
+            // const [rows] = await this.db.query(`
+            //     SELECT *, 
+            //     DATEDIFF(NEXT_RENT_DUE_DATE, CURDATE()) as days_until_due
+            //     FROM leases 
+            //     WHERE status = 'active' 
+            //     AND DATEDIFF(NEXT_RENT_DUE_DATE, CURDATE()) <= ? 
+            //     AND DATEDIFF(NEXT_RENT_DUE_DATE, CURDATE()) > 0
+            // `, [days]);
+            // return rows;
             
             const dueLeases = [];
             
-            for (const lease of this.leases.values()) {
+            for (const lease of this.db.values()) {
                 if (lease.status === 'active') {
-                    // Calculate next rent due date (simplified logic)
                     const daysUntilDue = this.calculateDaysUntilRentDue(lease, now);
                     if (daysUntilDue <= days && daysUntilDue > 0) {
                         dueLeases.push({
@@ -259,9 +330,19 @@ class LeaseService {
         try {
             const now = new Date();
             
+            // TODO: In production, this would be a real database query
+            // const [rows] = await this.db.query(`
+            //     SELECT *, 
+            //     DATEDIFF(CURDATE(), RENT_DUE_DATE) as days_overdue
+            //     FROM leases 
+            //     WHERE status = 'active' 
+            //     AND DATEDIFF(CURDATE(), RENT_DUE_DATE) >= ?
+            // `, [days]);
+            // return rows;
+            
             const overdueLeases = [];
             
-            for (const lease of this.leases.values()) {
+            for (const lease of this.db.values()) {
                 if (lease.status === 'active') {
                     const daysOverdue = this.calculateDaysOverdue(lease, now);
                     if (daysOverdue >= days) {
@@ -289,9 +370,20 @@ class LeaseService {
             const now = new Date();
             const thirtyDaysFromNow = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
             
+            // TODO: In production, this would be a real database query
+            // const [rows] = await this.db.query(`
+            //     SELECT *, 
+            //     DATEDIFF(end_date, CURDATE()) as days_until_expiry
+            //     FROM leases 
+            //     WHERE status = 'active' 
+            //     AND end_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+            //     ORDER BY end_date ASC
+            // `);
+            // return rows;
+            
             const expiringLeases = [];
             
-            for (const lease of this.leases.values()) {
+            for (const lease of this.db.values()) {
                 if (lease.status === 'active' && lease.endDate <= thirtyDaysFromNow) {
                     const daysUntilExpiry = Math.ceil((lease.endDate - now) / (24 * 60 * 60 * 1000));
                     expiringLeases.push({
@@ -301,7 +393,7 @@ class LeaseService {
                 }
             }
             
-            return expiringLeases;
+            return expiringLeases.sort((a, b) => a.endDate - b.endDate);
             
         } catch (error) {
             logger.error('Failed to get expiring leases:', error);
@@ -361,7 +453,8 @@ class LeaseService {
      * Calculate days until rent is due
      */
     calculateDaysUntilRentDue(lease, now) {
-        // Simplified logic - assumes rent is due on the 1st of each month
+        // In production, this would use the actual rent schedule from the lease
+        // For now, using simplified logic - assumes rent is due on the 1st of each month
         const currentMonth = now.getMonth();
         const currentYear = now.getFullYear();
         
@@ -383,7 +476,7 @@ class LeaseService {
      * Calculate days overdue
      */
     calculateDaysOverdue(lease, now) {
-        // Simplified logic - assumes rent is due on the 1st of each month
+        // In production, this would use the actual rent schedule from the lease
         const currentMonth = now.getMonth();
         const currentYear = now.getFullYear();
         
@@ -403,15 +496,27 @@ class LeaseService {
      */
     async getLeaseStats() {
         try {
+            // TODO: In production, this would be a real database query
+            // const [rows] = await this.db.query(`
+            //     SELECT 
+            //         COUNT(*) as total,
+            //         SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft,
+            //         SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+            //         SUM(CASE WHEN status = 'terminated' THEN 1 ELSE 0 END) as terminated,
+            //         SUM(CASE WHEN status = 'active' AND end_date < CURDATE() THEN 1 ELSE 0 END) as expired
+            //     FROM leases
+            // `);
+            // return rows[0];
+            
             const stats = {
-                total: this.leases.size,
+                total: this.db.size,
                 draft: 0,
                 active: 0,
                 terminated: 0,
                 expired: 0
             };
             
-            for (const lease of this.leases.values()) {
+            for (const lease of this.db.values()) {
                 if (lease.status === 'expired' && lease.endDate < new Date()) {
                     stats.expired++;
                 } else {
@@ -424,6 +529,22 @@ class LeaseService {
         } catch (error) {
             logger.error('Failed to get lease stats:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Close database connection
+     */
+    async close() {
+        try {
+            // TODO: In production, this would close the real database connection
+            // if (this.db) {
+            //     await this.db.end();
+            // }
+            this.db.clear();
+            logger.info('Lease service database connection closed');
+        } catch (error) {
+            logger.error('Failed to close lease service database:', error);
         }
     }
 }

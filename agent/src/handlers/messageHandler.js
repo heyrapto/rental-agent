@@ -1,13 +1,13 @@
 /**
- * Main message handler for AO agent
- * Routes incoming messages to appropriate action handlers
+ * Message handler for AO agent
+ * Routes all agent actions to appropriate services
  */
 
 const Joi = require('joi');
-const { v4: uuidv4 } = require('uuid');
+const { logger, logAction } = require('../utils/logger');
+const { ValidationError, NotFoundError } = require('../middleware/errorHandler');
 
-const { logger, logLeaseAction, logPaymentAction, logDisputeAction, logMaintenanceAction } = require('../utils/logger');
-const { asyncHandler, handleJoiValidationError, ValidationError } = require('../middleware/errorHandler');
+// Import services
 const { leaseService } = require('../services/leaseService');
 const { paymentService } = require('../services/paymentService');
 const { disputeService } = require('../services/disputeService');
@@ -15,164 +15,225 @@ const { maintenanceService } = require('../services/maintenanceService');
 const { communicationService } = require('../services/communicationService');
 const { arweaveService } = require('../services/arweaveService');
 
+// Action validation schemas
+const actionSchemas = {
+    createLease: Joi.object({
+        leaseId: Joi.string().optional(),
+        landlordAddr: Joi.string().required(),
+        tenantAddr: Joi.string().required(),
+        termsHash: Joi.string().required(),
+        rent: Joi.number().positive().required(),
+        currency: Joi.string().required(),
+        deposit: Joi.number().min(0).required(),
+        startDate: Joi.date().iso().required(),
+        endDate: Joi.date().iso().greater(Joi.ref('startDate')).required()
+    }),
+
+    signLease: Joi.object({
+        leaseId: Joi.string().required(),
+        walletAddress: Joi.string().required()
+    }),
+
+    recordPayment: Joi.object({
+        leaseId: Joi.string().required(),
+        payer: Joi.string().required(),
+        amount: Joi.number().positive().required(),
+        currency: Joi.string().required(),
+        chainId: Joi.number().integer().positive().required(),
+        txHash: Joi.string().required(),
+        receiptArweaveTxId: Joi.string().optional()
+    }),
+
+    postMessage: Joi.object({
+        leaseId: Joi.string().required(),
+        sender: Joi.string().required(),
+        recipient: Joi.string().required(),
+        subject: Joi.string().max(200).optional(),
+        content: Joi.string().required(),
+        messageType: Joi.string().valid('general', 'maintenance', 'payment', 'legal', 'emergency').optional(),
+        priority: Joi.string().valid('low', 'normal', 'high', 'urgent').optional()
+    }),
+
+    createTicket: Joi.object({
+        leaseId: Joi.string().required(),
+        reportedBy: Joi.string().required(),
+        title: Joi.string().required(),
+        description: Joi.string().required(),
+        priority: Joi.string().valid('low', 'medium', 'high').optional(),
+        category: Joi.string().valid('plumbing', 'electrical', 'hvac', 'structural', 'appliance', 'general').optional(),
+        estimatedCost: Joi.number().min(0).optional(),
+        dueDate: Joi.date().iso().optional()
+    }),
+
+    updateTicket: Joi.object({
+        ticketId: Joi.string().required(),
+        updates: Joi.object({
+            status: Joi.string().valid('open', 'assigned', 'in_progress', 'completed', 'cancelled').optional(),
+            assignedTo: Joi.string().optional(),
+            estimatedCost: Joi.number().min(0).optional(),
+            actualCost: Joi.number().min(0).optional(),
+            dueDate: Joi.date().iso().optional(),
+            notes: Joi.string().optional()
+        }).min(1).required()
+    }),
+
+    buildDisputePackage: Joi.object({
+        leaseId: Joi.string().required(),
+        evidenceTxIds: Joi.array().items(Joi.string()).min(1).required()
+    })
+};
+
 /**
- * Main message handler for POST /agent endpoint
+ * Main message handler
  */
-const messageHandler = asyncHandler(async (req, res) => {
-    const startTime = Date.now();
-    const { action, ...payload } = req.body;
-    const { walletAddress } = req.user;
-
-    logger.info(`Processing ${action} action`, {
-        action,
-        walletAddress,
-        payload: Object.keys(payload)
-    });
-
+const handleMessage = async (req, res) => {
     try {
-        // Validate action
+        const { action, data } = req.body;
+        const walletAddress = req.walletAddress;
+
         if (!action) {
             throw new ValidationError('Action is required');
         }
 
-        // Route to appropriate handler
+        if (!data) {
+            throw new ValidationError('Data is required');
+        }
+
+        logger.info('Processing agent action', { action, walletAddress, requestId: req.id });
+
         let result;
+
         switch (action) {
             case 'createLease':
-                result = await handleCreateLease(payload, walletAddress);
+                result = await handleCreateLease(data, walletAddress);
                 break;
-                
+
             case 'signLease':
-                result = await handleSignLease(payload, walletAddress);
+                result = await handleSignLease(data, walletAddress);
                 break;
-                
+
             case 'recordPayment':
-                result = await handleRecordPayment(payload, walletAddress);
+                result = await handleRecordPayment(data, walletAddress);
                 break;
-                
+
             case 'postMessage':
-                result = await handlePostMessage(payload, walletAddress);
+                result = await handlePostMessage(data, walletAddress);
                 break;
-                
+
             case 'createTicket':
-                result = await handleCreateTicket(payload, walletAddress);
+                result = await handleCreateTicket(data, walletAddress);
                 break;
-                
+
             case 'updateTicket':
-                result = await handleUpdateTicket(payload, walletAddress);
+                result = await handleUpdateTicket(data, walletAddress);
                 break;
-                
+
             case 'buildDisputePackage':
-                result = await handleBuildDisputePackage(payload, walletAddress);
+                result = await handleBuildDisputePackage(data, walletAddress);
                 break;
-                
+
             default:
                 throw new ValidationError(`Unknown action: ${action}`);
         }
 
-        const duration = Date.now() - startTime;
-        logger.info(`Action ${action} completed successfully`, {
+        logAction(action, walletAddress, { success: true, result });
+        
+        res.status(200).json({
+            success: true,
             action,
-            walletAddress,
-            duration,
-            result: Object.keys(result)
-        });
-
-        res.json({
-            ok: true,
-            ...result,
-            timestamp: new Date().toISOString()
+            result,
+            timestamp: new Date().toISOString(),
+            requestId: req.id
         });
 
     } catch (error) {
-        const duration = Date.now() - startTime;
-        logger.error(`Action ${action} failed`, {
-            action,
-            walletAddress,
-            duration,
-            error: error.message
+        logger.error('Message handling failed:', error);
+        
+        logAction(req.body?.action || 'unknown', req.walletAddress, { 
+            success: false, 
+            error: error.message 
         });
 
-        throw error;
+        if (error.name === 'ValidationError') {
+            res.status(400).json({
+                success: false,
+                error: 'Validation failed',
+                details: error.message,
+                requestId: req.id
+            });
+        } else if (error.name === 'NotFoundError') {
+            res.status(404).json({
+                success: false,
+                error: 'Resource not found',
+                details: error.message,
+                requestId: req.id
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                error: 'Internal server error',
+                requestId: req.id
+            });
+        }
     }
-});
+};
 
 /**
  * Handle lease creation
  */
-const handleCreateLease = async (payload, walletAddress) => {
-    // Validate payload
-    const { error, value } = createLeaseSchema.validate(payload);
+const handleCreateLease = async (data, walletAddress) => {
+    // Validate input data
+    const { error, value } = actionSchemas.createLease.validate(data);
     if (error) {
-        throw handleJoiValidationError(error);
+        throw new ValidationError(`Lease creation validation failed: ${error.details[0].message}`);
     }
 
-    const { landlordAddr, tenantAddr, terms, rent, currency, deposit, startDate, endDate } = value;
-
     // Verify sender is the landlord
-    if (landlordAddr !== walletAddress) {
+    if (value.landlordAddr !== walletAddress) {
         throw new ValidationError('Only the landlord can create a lease');
     }
 
     // Store lease terms on Arweave
-    const termsTxId = await arweaveService.storeLeaseTerms(terms, {
-        leaseId: uuidv4(),
-        landlordAddr,
-        tenantAddr,
-        rent,
-        currency,
-        deposit,
-        startDate,
-        endDate
+    const arweaveTxId = await arweaveService.storeLeaseTerms(value, {
+        leaseId: value.leaseId,
+        landlordAddr: value.landlordAddr,
+        tenantAddr: value.tenantAddr
     });
 
-    // Create lease record
+    // Create lease in local database
     const lease = await leaseService.createLease({
-        leaseId: uuidv4(),
-        landlordAddr,
-        tenantAddr,
-        termsHash: termsTxId,
-        rent,
-        currency,
-        deposit,
-        startDate,
-        endDate
-    });
-
-    logLeaseAction('created', lease.leaseId, walletAddress, {
-        tenantAddr,
-        rent,
-        currency,
-        deposit
+        ...value,
+        arweaveTxId
     });
 
     return {
-        leaseId: lease.leaseId,
-        arTxId: termsTxId
+        leaseId: lease.id,
+        arweaveTxId,
+        status: lease.status
     };
 };
 
 /**
  * Handle lease signing
  */
-const handleSignLease = async (payload, walletAddress) => {
-    const { error, value } = signLeaseSchema.validate(payload);
+const handleSignLease = async (data, walletAddress) => {
+    // Validate input data
+    const { error, value } = actionSchemas.signLease.validate(data);
     if (error) {
-        throw handleJoiValidationError(error);
+        throw new ValidationError(`Lease signing validation failed: ${error.details[0].message}`);
     }
 
-    const { leaseId } = value;
+    // Verify signer is a party to the lease
+    const lease = await leaseService.getLease(value.leaseId);
+    if (lease.landlordAddr !== walletAddress && lease.tenantAddr !== walletAddress) {
+        throw new ValidationError('Only lease parties can sign');
+    }
 
     // Sign the lease
-    const result = await leaseService.signLease(leaseId, walletAddress);
-
-    logLeaseAction('signed', leaseId, walletAddress, {
-        signatureCount: result.signatureCount,
-        status: result.status
-    });
+    const result = await leaseService.signLease(value.leaseId, walletAddress);
 
     return {
-        leaseId,
+        leaseId: value.leaseId,
         signatureCount: result.signatureCount,
         status: result.status
     };
@@ -181,237 +242,175 @@ const handleSignLease = async (payload, walletAddress) => {
 /**
  * Handle payment recording
  */
-const handleRecordPayment = async (payload, walletAddress) => {
-    const { error, value } = recordPaymentSchema.validate(payload);
+const handleRecordPayment = async (data, walletAddress) => {
+    // Validate input data
+    const { error, value } = actionSchemas.recordPayment.validate(data);
     if (error) {
-        throw handleJoiValidationError(error);
+        throw new ValidationError(`Payment recording validation failed: ${error.details[0].message}`);
     }
 
-    const { leaseId, amount, currency, chainId, txHash } = value;
-
     // Verify payment on blockchain
-    const paymentVerified = await paymentService.verifyPayment(chainId, txHash, amount, currency);
+    const paymentVerified = await paymentService.verifyPayment(
+        value.chainId,
+        value.txHash,
+        value.amount,
+        value.currency
+    );
+
     if (!paymentVerified) {
         throw new ValidationError('Payment verification failed');
     }
 
     // Store payment receipt on Arweave
-    const receiptTxId = await arweaveService.storePaymentReceipt({
-        leaseId,
-        payer: walletAddress,
-        amount,
-        currency,
-        chainId,
-        txHash,
-        timestamp: new Date().toISOString()
+    const receiptArweaveTxId = await arweaveService.storePaymentReceipt(value, {
+        leaseId: value.leaseId,
+        payer: value.payer,
+        amount: value.amount.toString(),
+        currency: value.currency
     });
 
-    // Record payment
+    // Record payment in local database
     const payment = await paymentService.recordPayment({
-        leaseId,
-        payer: walletAddress,
-        amount,
-        currency,
-        chainId,
-        txHash,
-        receiptArweaveTxId: receiptTxId
+        ...value,
+        receiptArweaveTxId
     });
 
-    logPaymentAction('recorded', leaseId, walletAddress, amount, currency, {
-        chainId,
-        txHash,
-        receiptTxId: receiptTxId
-    });
+    // Confirm payment
+    await paymentService.confirmPayment(payment.id, receiptArweaveTxId);
 
     return {
-        leaseId,
         paymentId: payment.id,
-        arTxId: receiptTxId
+        receiptArweaveTxId,
+        confirmed: true
     };
 };
 
 /**
  * Handle message posting
  */
-const handlePostMessage = async (payload, walletAddress) => {
-    const { error, value } = postMessageSchema.validate(payload);
+const handlePostMessage = async (data, walletAddress) => {
+    // Validate input data
+    const { error, value } = actionSchemas.postMessage.validate(data);
     if (error) {
-        throw handleJoiValidationError(error);
+        throw new ValidationError(`Message posting validation failed: ${error.details[0].message}`);
     }
 
-    const { leaseId, content, threadId } = value;
+    // Verify sender is a party to the lease
+    const lease = await leaseService.getLease(value.leaseId);
+    if (lease.landlordAddr !== walletAddress && lease.tenantAddr !== walletAddress) {
+        throw new ValidationError('Only lease parties can post messages');
+    }
 
     // Store message on Arweave
-    const messageTxId = await arweaveService.storeMessage({
-        leaseId,
-        sender: walletAddress,
-        content,
-        threadId,
-        timestamp: new Date().toISOString()
+    const arweaveTxId = await arweaveService.storeMessage(value, {
+        leaseId: value.leaseId,
+        sender: value.sender,
+        recipient: value.recipient
     });
 
-    // Record message
+    // Store message in local database
     const message = await communicationService.postMessage({
-        leaseId,
-        sender: walletAddress,
-        content,
-        threadId,
-        arweaveTxId: messageTxId
+        ...value,
+        arweaveTxId
     });
 
     return {
-        leaseId,
         messageId: message.id,
-        arTxId: messageTxId
+        arweaveTxId,
+        timestamp: message.createdAt
     };
 };
 
 /**
  * Handle maintenance ticket creation
  */
-const handleCreateTicket = async (payload, walletAddress) => {
-    const { error, value } = createTicketSchema.validate(payload);
+const handleCreateTicket = async (data, walletAddress) => {
+    // Validate input data
+    const { error, value } = actionSchemas.createTicket.validate(data);
     if (error) {
-        throw handleJoiValidationError(error);
+        throw new ValidationError(`Ticket creation validation failed: ${error.details[0].message}`);
     }
 
-    const { leaseId, title, description, priority } = value;
+    // Verify reporter is a party to the lease
+    const lease = await leaseService.getLease(value.leaseId);
+    if (lease.landlordAddr !== walletAddress && lease.tenantAddr !== walletAddress) {
+        throw new ValidationError('Only lease parties can create maintenance tickets');
+    }
 
-    // Store ticket details on Arweave
-    const ticketTxId = await arweaveService.storeMaintenanceTicket({
-        leaseId,
-        title,
-        description,
-        priority,
-        createdBy: walletAddress,
-        timestamp: new Date().toISOString()
+    // Store ticket on Arweave
+    const arweaveTxId = await arweaveService.storeMaintenanceTicket(value, {
+        leaseId: value.leaseId,
+        reportedBy: value.reportedBy,
+        priority: value.priority,
+        category: value.category
     });
 
-    // Create ticket
+    // Create ticket in local database
     const ticket = await maintenanceService.createTicket({
-        leaseId,
-        title,
-        description,
-        priority,
-        createdBy: walletAddress,
-        arweaveTxId: ticketTxId
-    });
-
-    logMaintenanceAction('created', ticket.id, leaseId, walletAddress, {
-        title,
-        priority
+        ...value,
+        arweaveTxId
     });
 
     return {
-        leaseId,
         ticketId: ticket.id,
-        arTxId: ticketTxId
+        arweaveTxId,
+        status: ticket.status
     };
 };
 
 /**
  * Handle maintenance ticket updates
  */
-const handleUpdateTicket = async (payload, walletAddress) => {
-    const { error, value } = updateTicketSchema.validate(payload);
+const handleUpdateTicket = async (data, walletAddress) => {
+    // Validate input data
+    const { error, value } = actionSchemas.updateTicket.validate(data);
     if (error) {
-        throw handleJoiValidationError(error);
+        throw new ValidationError(`Ticket update validation failed: ${error.details[0].message}`);
     }
 
-    const { ticketId, status, notes } = value;
-
     // Update ticket
-    const ticket = await maintenanceService.updateTicket(ticketId, {
-        status,
-        notes,
-        updatedBy: walletAddress
-    });
-
-    logMaintenanceAction('updated', ticketId, ticket.leaseId, walletAddress, {
-        status,
-        notes
-    });
+    const ticket = await maintenanceService.updateTicket(
+        value.ticketId,
+        value.updates,
+        walletAddress
+    );
 
     return {
-        ticketId,
-        status: ticket.status
+        ticketId: ticket.id,
+        status: ticket.status,
+        updatedAt: ticket.updatedAt
     };
 };
 
 /**
- * Handle dispute package building
+ * Handle dispute package creation
  */
-const handleBuildDisputePackage = async (payload, walletAddress) => {
-    const { error, value } = buildDisputePackageSchema.validate(payload);
+const handleBuildDisputePackage = async (data, walletAddress) => {
+    // Validate input data
+    const { error, value } = actionSchemas.buildDisputePackage.validate(data);
     if (error) {
-        throw handleJoiValidationError(error);
+        throw new ValidationError(`Dispute package creation validation failed: ${error.details[0].message}`);
     }
 
-    const { leaseId, evidenceTypes } = value;
+    // Verify creator is a party to the lease
+    const lease = await leaseService.getLease(value.leaseId);
+    if (lease.landlordAddr !== walletAddress && lease.tenantAddr !== walletAddress) {
+        throw new ValidationError('Only lease parties can create dispute packages');
+    }
 
-    // Build dispute package
-    const disputePackage = await disputeService.buildDisputePackage(leaseId, evidenceTypes, walletAddress);
-
-    logDisputeAction('package_built', disputePackage.id, leaseId, walletAddress, {
-        evidenceCount: disputePackage.evidenceCount,
-        merkleRoot: disputePackage.merkleRoot
-    });
+    // Create dispute package
+    const disputePackage = await disputeService.buildDisputePackage(
+        value.leaseId,
+        value.evidenceTxIds,
+        walletAddress
+    );
 
     return {
-        leaseId,
-        disputeId: disputePackage.id,
+        disputeId: disputePackage.disputeId,
         merkleRoot: disputePackage.merkleRoot,
-        evidenceCount: disputePackage.evidenceCount,
-        arTxId: disputePackage.arweaveTxId
+        arweaveTxId: disputePackage.arweaveTxId,
+        evidenceCount: disputePackage.evidenceCount
     };
 };
 
-// Validation schemas
-const createLeaseSchema = Joi.object({
-    landlordAddr: Joi.string().required(),
-    tenantAddr: Joi.string().required(),
-    terms: Joi.string().required(),
-    rent: Joi.number().positive().required(),
-    currency: Joi.string().valid('USDA', 'AR', 'USDC').required(),
-    deposit: Joi.number().min(0).required(),
-    startDate: Joi.date().iso().required(),
-    endDate: Joi.date().iso().greater(Joi.ref('startDate')).required()
-});
-
-const signLeaseSchema = Joi.object({
-    leaseId: Joi.string().uuid().required()
-});
-
-const recordPaymentSchema = Joi.object({
-    leaseId: Joi.string().uuid().required(),
-    amount: Joi.number().positive().required(),
-    currency: Joi.string().valid('USDA', 'AR', 'USDC').required(),
-    chainId: Joi.string().required(),
-    txHash: Joi.string().required()
-});
-
-const postMessageSchema = Joi.object({
-    leaseId: Joi.string().uuid().required(),
-    content: Joi.string().max(10000).required(),
-    threadId: Joi.string().optional()
-});
-
-const createTicketSchema = Joi.object({
-    leaseId: Joi.string().uuid().required(),
-    title: Joi.string().max(200).required(),
-    description: Joi.string().max(5000).required(),
-    priority: Joi.string().valid('low', 'medium', 'high', 'urgent').required()
-});
-
-const updateTicketSchema = Joi.object({
-    ticketId: Joi.string().uuid().required(),
-    status: Joi.string().valid('open', 'in-progress', 'resolved', 'closed').required(),
-    notes: Joi.string().max(1000).optional()
-});
-
-const buildDisputePackageSchema = Joi.object({
-    leaseId: Joi.string().uuid().required(),
-    evidenceTypes: Joi.array().items(Joi.string().valid('lease', 'payment', 'message', 'ticket')).min(1).required()
-});
-
-module.exports = { messageHandler };
+module.exports = { handleMessage };

@@ -1,7 +1,7 @@
 {
   "name": "rental-contract-ao-agent",
   "version": "1.0.0",
-  "description": "AO autonomous agent for rental contract management with Arweave storage",
+  "description": "Autonomous agent for rental contract management with immutable storage on Arweave",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -9,18 +9,19 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "lint": "eslint src/**/*.js",
-    "lint:fix": "eslint src/**/*.js --fix"
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix"
   },
   "keywords": [
     "ao",
-    "arweave",
-    "rental",
-    "contract",
     "autonomous-agent",
-    "blockchain"
+    "rental-contract",
+    "arweave",
+    "ethereum",
+    "blockchain",
+    "smart-contracts"
   ],
-  "author": "Rental Contract AO Agent",
+  "author": "Rental Contract AO Agent Team",
   "license": "MIT",
   "dependencies": {
     "arweave": "^1.14.0",
@@ -37,19 +38,26 @@
     "dotenv": "^16.3.1",
     "joi": "^17.11.0",
     "jsonwebtoken": "^9.0.2",
-    "bcryptjs": "^2.4.3"
+    "bcryptjs": "^2.4.3",
+    "ethers": "^6.8.1",
+    "cron-parser": "^4.9.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
     "supertest": "^6.3.3",
     "nodemon": "^3.0.2",
-    "eslint": "^8.55.0",
-    "eslint-config-standard": "^17.1.0",
-    "eslint-plugin-import": "^2.29.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^6.1.1"
+    "eslint": "^8.55.0"
   },
   "engines": {
-    "node": ">=18.0.0"
-  }
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/rental-contract-ao-agent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/rental-contract-ao-agent/issues"
+  },
+  "homepage": "https://github.com/your-org/rental-contract-ao-agent#readme"
 }

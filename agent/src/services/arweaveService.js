@@ -1,52 +1,48 @@
 /**
- * Arweave service for immutable storage
- * Handles all interactions with the Arweave network
+ * Arweave service for AO agent
+ * Handles all Arweave interactions and data storage
  */
 
 const Arweave = require('arweave');
-const { logger, logArweaveAction, logError } = require('../utils/logger');
+const { logger, logArweaveAction } = require('../utils/logger');
+const { ArweaveError, ValidationError } = require('../middleware/errorHandler');
 const { config } = require('../config');
-const { ArweaveError } = require('../middleware/errorHandler');
+const fs = require('fs');
+const path = require('path');
 
 class ArweaveService {
     constructor() {
         this.arweave = null;
         this.wallet = null;
-        this.isConnected = false;
-        this.retryAttempts = config.ARWEAVE_RETRIES;
-        this.timeout = config.ARWEAVE_TIMEOUT;
+        this.initialized = false;
+        this.initializeArweave();
     }
 
     /**
-     * Initialize Arweave service
+     * Initialize Arweave connection and wallet
      */
-    async initialize() {
+    async initializeArweave() {
         try {
-            // Initialize Arweave client
+            // Initialize Arweave instance
             this.arweave = Arweave.init({
                 host: config.ARWEAVE_HOST,
                 port: config.ARWEAVE_PORT,
                 protocol: config.ARWEAVE_PROTOCOL,
-                timeout: this.timeout
-            });
-
-            // Load wallet if available
-            if (config.WALLET_PATH) {
-                await this.loadWallet();
-            }
-
-            // Test connection
-            await this.testConnection();
-            
-            this.isConnected = true;
-            logger.info('Arweave service initialized successfully', {
-                host: config.ARWEAVE_HOST,
                 network: config.ARWEAVE_NETWORK
             });
 
+            // Load wallet
+            await this.loadWallet();
+
+            // Test connection
+            await this.testConnection();
+
+            this.initialized = true;
+            logger.info('Arweave service initialized successfully');
+
         } catch (error) {
-            logError(error, { service: 'arweave', action: 'initialize' });
-            throw new ArweaveError('Failed to initialize Arweave service', error.message);
+            logger.error('Failed to initialize Arweave service:', error);
+            throw new ArweaveError('Arweave initialization failed', error.message);
         }
     }
 
@@ -56,17 +52,35 @@ class ArweaveService {
     async loadWallet() {
         try {
             if (config.MOCK_ARWEAVE) {
-                // Create mock wallet for testing
-                this.wallet = await this.arweave.wallets.generate();
-                logger.info('Mock wallet generated for testing');
-            } else {
-                // Load real wallet from file
-                this.wallet = JSON.parse(require('fs').readFileSync(config.WALLET_PATH, 'utf8'));
-                logger.info('Wallet loaded successfully');
+                logger.info('Using mock Arweave wallet for testing');
+                this.wallet = {
+                    address: 'mock_arweave_address_' + Math.random().toString(36).substr(2, 9),
+                    getAddress: () => this.wallet.address
+                };
+                return;
             }
+
+            // Load wallet from file
+            if (config.ARWEAVE_WALLET_PATH && fs.existsSync(config.ARWEAVE_WALLET_PATH)) {
+                const walletData = fs.readFileSync(config.ARWEAVE_WALLET_PATH, 'utf8');
+                this.wallet = JSON.parse(walletData);
+                logger.info('Arweave wallet loaded from file');
+            } else if (config.ARWEAVE_WALLET_JWK) {
+                // Load wallet from environment variable
+                this.wallet = JSON.parse(config.ARWEAVE_WALLET_JWK);
+                logger.info('Arweave wallet loaded from environment');
+            } else {
+                throw new Error('No wallet configuration found');
+            }
+
+            // Validate wallet format
+            if (!this.wallet.kty || !this.wallet.n) {
+                throw new Error('Invalid wallet format');
+            }
+
         } catch (error) {
-            logger.warn('Failed to load wallet, running in read-only mode', error.message);
-            this.wallet = null;
+            logger.error('Failed to load Arweave wallet:', error);
+            throw new ArweaveError('Wallet loading failed', error.message);
         }
     }
 
@@ -75,264 +89,331 @@ class ArweaveService {
      */
     async testConnection() {
         try {
-            const info = await this.arweave.network.getInfo();
-            logger.info('Arweave network info', {
-                version: info.version,
-                height: info.height,
-                peers: info.peers
-            });
+            if (config.MOCK_ARWEAVE) {
+                logger.info('Mock Arweave connection test passed');
+                return;
+            }
+
+            // Get network info
+            const networkInfo = await this.arweave.network.getInfo();
+            logger.info('Arweave network info:', networkInfo);
+
+            // Get wallet balance
+            const balance = await this.arweave.wallets.getBalance(this.wallet.address);
+            const balanceInAR = this.arweave.ar.winstonToAr(balance);
+            logger.info(`Wallet balance: ${balanceInAR} AR`);
+
+            if (parseFloat(balanceInAR) < config.ARWEAVE_MIN_BALANCE) {
+                logger.warn(`Low wallet balance: ${balanceInAR} AR (minimum: ${config.ARWEAVE_MIN_BALANCE} AR)`);
+            }
+
         } catch (error) {
-            throw new ArweaveError('Failed to connect to Arweave network', error.message);
+            logger.error('Arweave connection test failed:', error);
+            throw new ArweaveError('Connection test failed', error.message);
         }
     }
 
     /**
      * Store lease terms on Arweave
      */
-    async storeLeaseTerms(terms, metadata) {
+    async storeLeaseTerms(leaseData, metadata = {}) {
         try {
-            const transaction = await this.arweave.createTransaction({
-                data: terms
-            });
-
-            // Add metadata tags
-            transaction.addTag('Content-Type', 'application/json');
-            transaction.addTag('App-Name', 'rental-contract-ao-agent');
-            transaction.addTag('App-Version', require('../../../package.json').version);
-            transaction.addTag('Type', 'lease-terms');
-            transaction.addTag('Lease-ID', metadata.leaseId);
-            transaction.addTag('Landlord', metadata.landlordAddr);
-            transaction.addTag('Tenant', metadata.tenantAddr);
-            transaction.addTag('Rent', metadata.rent.toString());
-            transaction.addTag('Currency', metadata.currency);
-            transaction.addTag('Deposit', metadata.deposit.toString());
-            transaction.addTag('Start-Date', metadata.startDate);
-            transaction.addTag('End-Date', metadata.endDate);
-            transaction.addTag('Timestamp', new Date().toISOString());
-
-            // Sign and post transaction
-            if (this.wallet) {
-                await this.arweave.transactions.sign(transaction, this.wallet);
-                const response = await this.arweave.transactions.post(transaction);
-                
-                if (response.status === 200 || response.status === 202) {
-                    logArweaveAction('stored', transaction.id, {
-                        type: 'lease-terms',
-                        leaseId: metadata.leaseId
-                    });
-                    
-                    return transaction.id;
-                } else {
-                    throw new ArweaveError('Failed to post transaction', response.statusText);
-                }
-            } else {
-                throw new ArweaveError('No wallet available for signing transactions');
+            if (!this.initialized) {
+                throw new ArweaveError('Arweave service not initialized');
             }
 
-        } catch (error) {
-            logError(error, { 
-                service: 'arweave', 
-                action: 'storeLeaseTerms',
-                leaseId: metadata.leaseId 
+            // Prepare data for storage
+            const data = JSON.stringify(leaseData);
+            const tags = [
+                { name: 'Content-Type', value: 'application/json' },
+                { name: 'App-Name', value: 'Rental-Contract-AO' },
+                { name: 'App-Version', value: config.APP_VERSION },
+                { name: 'Data-Type', value: 'lease-terms' },
+                { name: 'Lease-ID', value: leaseData.leaseId || metadata.leaseId },
+                { name: 'Landlord', value: leaseData.landlordAddr || metadata.landlordAddr },
+                { name: 'Tenant', value: leaseData.tenantAddr || metadata.tenantAddr },
+                { name: 'Created-At', value: new Date().toISOString() },
+                { name: 'Timestamp', value: Date.now().toString() }
+            ];
+
+            // Add custom metadata tags
+            Object.entries(metadata).forEach(([key, value]) => {
+                if (value && typeof value === 'string') {
+                    tags.push({ name: key, value });
+                }
             });
-            throw new ArweaveError('Failed to store lease terms', error.message);
+
+            const transaction = await this.createTransaction(data, tags);
+            const transactionId = await this.postTransaction(transaction);
+
+            logArweaveAction('stored', 'lease_terms', transactionId, {
+                leaseId: leaseData.leaseId || metadata.leaseId,
+                dataSize: data.length
+            });
+
+            return transactionId;
+
+        } catch (error) {
+            logger.error('Failed to store lease terms on Arweave:', error);
+            throw new ArweaveError('Lease terms storage failed', error.message);
         }
     }
 
     /**
      * Store payment receipt on Arweave
      */
-    async storePaymentReceipt(receiptData) {
+    async storePaymentReceipt(paymentData, metadata = {}) {
         try {
-            const transaction = await this.arweave.createTransaction({
-                data: JSON.stringify(receiptData)
-            });
-
-            // Add metadata tags
-            transaction.addTag('Content-Type', 'application/json');
-            transaction.addTag('App-Name', 'rental-contract-ao-agent');
-            transaction.addTag('Type', 'payment-receipt');
-            transaction.addTag('Lease-ID', receiptData.leaseId);
-            transaction.addTag('Payer', receiptData.payer);
-            transaction.addTag('Amount', receiptData.amount.toString());
-            transaction.addTag('Currency', receiptData.currency);
-            transaction.addTag('Chain-ID', receiptData.chainId);
-            transaction.addTag('TX-Hash', receiptData.txHash);
-            transaction.addTag('Timestamp', receiptData.timestamp);
-
-            // Sign and post transaction
-            if (this.wallet) {
-                await this.arweave.transactions.sign(transaction, this.wallet);
-                const response = await this.arweave.transactions.post(transaction);
-                
-                if (response.status === 200 || response.status === 202) {
-                    logArweaveAction('stored', transaction.id, {
-                        type: 'payment-receipt',
-                        leaseId: receiptData.leaseId
-                    });
-                    
-                    return transaction.id;
-                } else {
-                    throw new ArweaveError('Failed to post transaction', response.statusText);
-                }
-            } else {
-                throw new ArweaveError('No wallet available for signing transactions');
+            if (!this.initialized) {
+                throw new ArweaveError('Arweave service not initialized');
             }
 
-        } catch (error) {
-            logError(error, { 
-                service: 'arweave', 
-                action: 'storePaymentReceipt',
-                leaseId: receiptData.leaseId 
+            // Prepare data for storage
+            const data = JSON.stringify(paymentData);
+            const tags = [
+                { name: 'Content-Type', value: 'application/json' },
+                { name: 'App-Name', value: 'Rental-Contract-AO' },
+                { name: 'App-Version', value: config.APP_VERSION },
+                { name: 'Data-Type', value: 'payment-receipt' },
+                { name: 'Lease-ID', value: paymentData.leaseId },
+                { name: 'Payer', value: paymentData.payer },
+                { name: 'Amount', value: paymentData.amount.toString() },
+                { name: 'Currency', value: paymentData.currency },
+                { name: 'Chain-ID', value: paymentData.chainId.toString() },
+                { name: 'Tx-Hash', value: paymentData.txHash },
+                { name: 'Created-At', value: new Date().toISOString() },
+                { name: 'Timestamp', value: Date.now().toString() }
+            ];
+
+            // Add custom metadata tags
+            Object.entries(metadata).forEach(([key, value]) => {
+                if (value && typeof value === 'string') {
+                    tags.push({ name: key, value });
+                }
             });
-            throw new ArweaveError('Failed to store payment receipt', error.message);
+
+            const transaction = await this.createTransaction(data, tags);
+            const transactionId = await this.postTransaction(transaction);
+
+            logArweaveAction('stored', 'payment_receipt', transactionId, {
+                leaseId: paymentData.leaseId,
+                amount: paymentData.amount,
+                currency: paymentData.currency
+            });
+
+            return transactionId;
+
+        } catch (error) {
+            logger.error('Failed to store payment receipt on Arweave:', error);
+            throw new ArweaveError('Payment receipt storage failed', error.message);
         }
     }
 
     /**
      * Store message on Arweave
      */
-    async storeMessage(messageData) {
+    async storeMessage(messageData, metadata = {}) {
         try {
-            const transaction = await this.arweave.createTransaction({
-                data: messageData.content
-            });
-
-            // Add metadata tags
-            transaction.addTag('Content-Type', 'text/plain');
-            transaction.addTag('App-Name', 'rental-contract-ao-agent');
-            transaction.addTag('Type', 'message');
-            transaction.addTag('Lease-ID', messageData.leaseId);
-            transaction.addTag('Sender', messageData.sender);
-            transaction.addTag('Thread-ID', messageData.threadId || 'main');
-            transaction.addTag('Timestamp', messageData.timestamp);
-
-            // Sign and post transaction
-            if (this.wallet) {
-                await this.arweave.transactions.sign(transaction, this.wallet);
-                const response = await this.arweave.transactions.post(transaction);
-                
-                if (response.status === 200 || response.status === 202) {
-                    logArweaveAction('stored', transaction.id, {
-                        type: 'message',
-                        leaseId: messageData.leaseId,
-                        threadId: messageData.threadId
-                    });
-                    
-                    return transaction.id;
-                } else {
-                    throw new ArweaveError('Failed to post transaction', response.statusText);
-                }
-            } else {
-                throw new ArweaveError('No wallet available for signing transactions');
+            if (!this.initialized) {
+                throw new ArweaveError('Arweave service not initialized');
             }
 
-        } catch (error) {
-            logError(error, { 
-                service: 'arweave', 
-                action: 'storeMessage',
-                leaseId: messageData.leaseId 
+            // Prepare data for storage
+            const data = JSON.stringify(messageData);
+            const tags = [
+                { name: 'Content-Type', value: 'application/json' },
+                { name: 'App-Name', value: 'Rental-Contract-AO' },
+                { name: 'App-Version', value: config.APP_VERSION },
+                { name: 'Data-Type', value: 'message' },
+                { name: 'Lease-ID', value: messageData.leaseId },
+                { name: 'Sender', value: messageData.sender },
+                { name: 'Recipient', value: messageData.recipient },
+                { name: 'Message-Type', value: messageData.messageType || 'general' },
+                { name: 'Priority', value: messageData.priority || 'normal' },
+                { name: 'Created-At', value: new Date().toISOString() },
+                { name: 'Timestamp', value: Date.now().toString() }
+            ];
+
+            // Add custom metadata tags
+            Object.entries(metadata).forEach(([key, value]) => {
+                if (value && typeof value === 'string') {
+                    tags.push({ name: key, value });
+                }
             });
-            throw new ArweaveError('Failed to store message', error.message);
+
+            const transaction = await this.createTransaction(data, tags);
+            const transactionId = await this.postTransaction(transaction);
+
+            logArweaveAction('stored', 'message', transactionId, {
+                leaseId: messageData.leaseId,
+                sender: messageData.sender,
+                recipient: messageData.recipient
+            });
+
+            return transactionId;
+
+        } catch (error) {
+            logger.error('Failed to store message on Arweave:', error);
+            throw new ArweaveError('Message storage failed', error.message);
         }
     }
 
     /**
      * Store maintenance ticket on Arweave
      */
-    async storeMaintenanceTicket(ticketData) {
+    async storeMaintenanceTicket(ticketData, metadata = {}) {
         try {
-            const transaction = await this.arweave.createTransaction({
-                data: JSON.stringify(ticketData)
-            });
-
-            // Add metadata tags
-            transaction.addTag('Content-Type', 'application/json');
-            transaction.addTag('App-Name', 'rental-contract-ao-agent');
-            transaction.addTag('Type', 'maintenance-ticket');
-            transaction.addTag('Lease-ID', ticketData.leaseId);
-            transaction.addTag('Title', ticketData.title);
-            transaction.addTag('Priority', ticketData.priority);
-            transaction.addTag('Created-By', ticketData.createdBy);
-            transaction.addTag('Timestamp', ticketData.timestamp);
-
-            // Sign and post transaction
-            if (this.wallet) {
-                await this.arweave.transactions.sign(transaction, this.wallet);
-                const response = await this.arweave.transactions.post(transaction);
-                
-                if (response.status === 200 || response.status === 202) {
-                    logArweaveAction('stored', transaction.id, {
-                        type: 'maintenance-ticket',
-                        leaseId: ticketData.leaseId,
-                        priority: ticketData.priority
-                    });
-                    
-                    return transaction.id;
-                } else {
-                    throw new ArweaveError('Failed to post transaction', response.statusText);
-                }
-            } else {
-                throw new ArweaveError('No wallet available for signing transactions');
+            if (!this.initialized) {
+                throw new ArweaveError('Arweave service not initialized');
             }
 
-        } catch (error) {
-            logError(error, { 
-                service: 'arweave', 
-                action: 'storeMaintenanceTicket',
-                leaseId: ticketData.leaseId 
+            // Prepare data for storage
+            const data = JSON.stringify(ticketData);
+            const tags = [
+                { name: 'Content-Type', value: 'application/json' },
+                { name: 'App-Name', value: 'Rental-Contract-AO' },
+                { name: 'App-Version', value: config.APP_VERSION },
+                { name: 'Data-Type', value: 'maintenance-ticket' },
+                { name: 'Lease-ID', value: ticketData.leaseId },
+                { name: 'Reported-By', value: ticketData.reportedBy },
+                { name: 'Priority', value: ticketData.priority },
+                { name: 'Category', value: ticketData.category },
+                { name: 'Status', value: ticketData.status },
+                { name: 'Created-At', value: new Date().toISOString() },
+                { name: 'Timestamp', value: Date.now().toString() }
+            ];
+
+            // Add custom metadata tags
+            Object.entries(metadata).forEach(([key, value]) => {
+                if (value && typeof value === 'string') {
+                    tags.push({ name: key, value });
+                }
             });
-            throw new ArweaveError('Failed to store maintenance ticket', error.message);
+
+            const transaction = await this.createTransaction(data, tags);
+            const transactionId = await this.postTransaction(transaction);
+
+            logArweaveAction('stored', 'maintenance_ticket', transactionId, {
+                leaseId: ticketData.leaseId,
+                priority: ticketData.priority,
+                category: ticketData.category
+            });
+
+            return transactionId;
+
+        } catch (error) {
+            logger.error('Failed to store maintenance ticket on Arweave:', error);
+            throw new ArweaveError('Maintenance ticket storage failed', error.message);
         }
     }
 
     /**
      * Store dispute package on Arweave
      */
-    async storeDisputePackage(disputeData) {
+    async storeDisputePackage(disputeData, metadata = {}) {
         try {
-            const transaction = await this.arweave.createTransaction({
-                data: JSON.stringify(disputeData)
-            });
-
-            // Add metadata tags
-            transaction.addTag('Content-Type', 'application/json');
-            transaction.addTag('App-Name', 'rental-contract-ao-agent');
-            transaction.addTag('Type', 'dispute-package');
-            transaction.addTag('Lease-ID', disputeData.leaseId);
-            transaction.addTag('Dispute-ID', disputeData.disputeId);
-            transaction.addTag('Merkle-Root', disputeData.merkleRoot);
-            transaction.addTag('Evidence-Count', disputeData.evidenceCount.toString());
-            transaction.addTag('Created-By', disputeData.createdBy);
-            transaction.addTag('Timestamp', disputeData.timestamp);
-
-            // Sign and post transaction
-            if (this.wallet) {
-                await this.arweave.transactions.sign(transaction, this.wallet);
-                const response = await this.arweave.transactions.post(transaction);
-                
-                if (response.status === 200 || response.status === 202) {
-                    logArweaveAction('stored', transaction.id, {
-                        type: 'dispute-package',
-                        leaseId: disputeData.leaseId,
-                        disputeId: disputeData.disputeId
-                    });
-                    
-                    return transaction.id;
-                } else {
-                    throw new ArweaveError('Failed to post transaction', response.statusText);
-                }
-            } else {
-                throw new ArweaveError('No wallet available for signing transactions');
+            if (!this.initialized) {
+                throw new ArweaveError('Arweave service not initialized');
             }
 
-        } catch (error) {
-            logError(error, { 
-                service: 'arweave', 
-                action: 'storeDisputePackage',
-                leaseId: disputeData.leaseId 
+            // Prepare data for storage
+            const data = JSON.stringify(disputeData);
+            const tags = [
+                { name: 'Content-Type', value: 'application/json' },
+                { name: 'App-Name', value: 'Rental-Contract-AO' },
+                { name: 'App-Version', value: config.APP_VERSION },
+                { name: 'Data-Type', value: 'dispute-package' },
+                { name: 'Lease-ID', value: disputeData.leaseId },
+                { name: 'Dispute-ID', value: disputeData.id },
+                { name: 'Merkle-Root', value: disputeData.merkleRoot },
+                { name: 'Evidence-Count', value: disputeData.evidenceTxIds.length.toString() },
+                { name: 'Created-By', value: disputeData.createdBy },
+                { name: 'Status', value: disputeData.status },
+                { name: 'Created-At', value: new Date().toISOString() },
+                { name: 'Timestamp', value: Date.now().toString() }
+            ];
+
+            // Add custom metadata tags
+            Object.entries(metadata).forEach(([key, value]) => {
+                if (value && typeof value === 'string') {
+                    tags.push({ name: key, value });
+                }
             });
-            throw new ArweaveError('Failed to store dispute package', error.message);
+
+            const transaction = await this.createTransaction(data, tags);
+            const transactionId = await this.postTransaction(transaction);
+
+            logArweaveAction('stored', 'dispute_package', transactionId, {
+                leaseId: disputeData.leaseId,
+                disputeId: disputeData.id,
+                evidenceCount: disputeData.evidenceTxIds.length
+            });
+
+            return transactionId;
+
+        } catch (error) {
+            logger.error('Failed to store dispute package on Arweave:', error);
+            throw new ArweaveError('Dispute package storage failed', error.message);
+        }
+    }
+
+    /**
+     * Create Arweave transaction
+     */
+    async createTransaction(data, tags) {
+        try {
+            if (config.MOCK_ARWEAVE) {
+                // Return mock transaction for testing
+                return {
+                    id: 'mock_tx_' + Math.random().toString(36).substr(2, 9),
+                    data: data,
+                    tags: tags
+                };
+            }
+
+            // Create real transaction
+            const transaction = await this.arweave.createTransaction({
+                data: data
+            }, this.wallet);
+
+            // Add tags
+            tags.forEach(tag => {
+                transaction.addTag(tag.name, tag.value);
+            });
+
+            // Sign transaction
+            await this.arweave.transactions.sign(transaction, this.wallet);
+
+            return transaction;
+
+        } catch (error) {
+            logger.error('Failed to create Arweave transaction:', error);
+            throw new ArweaveError('Transaction creation failed', error.message);
+        }
+    }
+
+    /**
+     * Post transaction to Arweave
+     */
+    async postTransaction(transaction) {
+        try {
+            if (config.MOCK_ARWEAVE) {
+                // Return mock transaction ID for testing
+                return transaction.id;
+            }
+
+            // Post real transaction
+            const response = await this.arweave.transactions.post(transaction);
+            
+            if (response.status !== 200 && response.status !== 202) {
+                throw new Error(`Transaction posting failed: ${response.status} ${response.statusText}`);
+            }
+
+            return transaction.id;
+
+        } catch (error) {
+            logger.error('Failed to post Arweave transaction:', error);
+            throw new ArweaveError('Transaction posting failed', error.message);
         }
     }
 
@@ -341,20 +422,28 @@ class ArweaveService {
      */
     async retrieveData(transactionId) {
         try {
+            if (config.MOCK_ARWEAVE) {
+                logger.info('Mock data retrieval', { transactionId });
+                return { data: 'mock_data', metadata: {} };
+            }
+
+            if (!this.initialized) {
+                throw new ArweaveError('Arweave service not initialized');
+            }
+
+            // Get transaction data
             const data = await this.arweave.transactions.getData(transactionId, {
                 decode: true
             });
-            
-            logArweaveAction('retrieved', transactionId, {});
-            return data;
+
+            // Get transaction metadata
+            const metadata = await this.getTransactionMetadata(transactionId);
+
+            return { data, metadata };
 
         } catch (error) {
-            logError(error, { 
-                service: 'arweave', 
-                action: 'retrieveData',
-                transactionId 
-            });
-            throw new ArweaveError('Failed to retrieve data', error.message);
+            logger.error('Failed to retrieve data from Arweave:', error);
+            throw new ArweaveError('Data retrieval failed', error.message);
         }
     }
 
@@ -363,76 +452,59 @@ class ArweaveService {
      */
     async getTransactionMetadata(transactionId) {
         try {
+            if (config.MOCK_ARWEAVE) {
+                return { tags: [] };
+            }
+
             const transaction = await this.arweave.transactions.get(transactionId);
-            const tags = {};
-            
-            transaction.tags.forEach(tag => {
-                const key = tag.get('name', { decode: true, string: true });
-                const value = tag.get('value', { decode: true, string: true });
-                tags[key] = value;
-            });
-            
-            return {
-                id: transaction.id,
-                owner: transaction.owner,
-                tags,
-                timestamp: transaction.timestamp,
-                block: transaction.block_id
-            };
+            const tags = transaction.tags.reduce((acc, tag) => {
+                acc[tag.get('name', { decode: true })] = tag.get('value', { decode: true });
+                return acc;
+            }, {});
+
+            return { tags };
 
         } catch (error) {
-            logError(error, { 
-                service: 'arweave', 
-                action: 'getTransactionMetadata',
-                transactionId 
-            });
-            throw new ArweaveError('Failed to get transaction metadata', error.message);
+            logger.error('Failed to get transaction metadata:', error);
+            throw new ArweaveError('Metadata retrieval failed', error.message);
         }
     }
 
     /**
-     * Search for transactions by tags
+     * Search transactions by tags
      */
-    async searchTransactions(tags) {
+    async searchTransactions(query, options = {}) {
         try {
-            const query = {
-                op: 'and',
-                expr1: {
-                    op: 'equals',
-                    expr1: 'App-Name',
-                    expr2: 'rental-contract-ao-agent'
-                }
-            };
+            if (config.MOCK_ARWEAVE) {
+                logger.info('Mock transaction search', { query, options });
+                return [];
+            }
 
-            // Add additional tag filters
-            Object.entries(tags).forEach(([key, value]) => {
-                query.expr1 = {
-                    op: 'and',
-                    expr1: query.expr1,
-                    expr2: {
-                        op: 'equals',
-                        expr1: key,
-                        expr2: value
-                    }
-                };
-            });
+            if (!this.initialized) {
+                throw new ArweaveError('Arweave service not initialized');
+            }
 
-            const results = await this.arweave.arql(query);
+            // Build query string
+            let queryString = query;
+            if (options.tags) {
+                Object.entries(options.tags).forEach(([key, value]) => {
+                    queryString += ` AND ${key}:${value}`;
+                });
+            }
+
+            // Search transactions
+            const transactionIds = await this.arweave.arql(queryString);
             
-            logArweaveAction('searched', 'multiple', { 
-                tagCount: Object.keys(tags).length,
-                resultCount: results.length 
-            });
-            
-            return results;
+            // Limit results
+            if (options.limit) {
+                transactionIds.splice(options.limit);
+            }
+
+            return transactionIds;
 
         } catch (error) {
-            logError(error, { 
-                service: 'arweave', 
-                action: 'searchTransactions',
-                tags 
-            });
-            throw new ArweaveError('Failed to search transactions', error.message);
+            logger.error('Failed to search Arweave transactions:', error);
+            throw new ArweaveError('Transaction search failed', error.message);
         }
     }
 
@@ -441,42 +513,59 @@ class ArweaveService {
      */
     async getWalletBalance() {
         try {
-            if (!this.wallet) {
-                throw new ArweaveError('No wallet available');
+            if (config.MOCK_ARWEAVE) {
+                return { balance: '1000000000000000000', unit: 'winston' };
             }
 
-            const address = await this.arweave.wallets.jwkToAddress(this.wallet);
-            const balance = await this.arweave.wallets.getBalance(address);
-            
+            if (!this.initialized || !this.wallet) {
+                throw new ArweaveError('Arweave service not initialized');
+            }
+
+            const balance = await this.arweave.wallets.getBalance(this.wallet.address);
+            const balanceInAR = this.arweave.ar.winstonToAr(balance);
+
             return {
-                address,
-                balance: this.arweave.ar.winstonToAr(balance)
+                balance: balance,
+                balanceInAR: balanceInAR,
+                unit: 'winston',
+                address: this.wallet.address
             };
 
         } catch (error) {
-            logError(error, { 
-                service: 'arweave', 
-                action: 'getWalletBalance' 
-            });
-            throw new ArweaveError('Failed to get wallet balance', error.message);
+            logger.error('Failed to get wallet balance:', error);
+            throw new ArweaveError('Balance retrieval failed', error.message);
         }
     }
 
     /**
-     * Disconnect from Arweave
+     * Validate Arweave transaction ID format
      */
-    disconnect() {
-        this.isConnected = false;
-        this.arweave = null;
-        this.wallet = null;
-        logger.info('Arweave service disconnected');
+    validateTransactionId(txId) {
+        if (!txId || typeof txId !== 'string') {
+            throw new ValidationError('Transaction ID is required');
+        }
+
+        // Arweave transaction IDs are 43 characters long and contain only base64url characters
+        const arweaveTxIdPattern = /^[A-Za-z0-9_-]{43}$/;
+        if (!arweaveTxIdPattern.test(txId)) {
+            throw new ValidationError('Invalid Arweave transaction ID format');
+        }
+
+        return true;
     }
 
     /**
-     * Check if service is connected
+     * Close Arweave service
      */
-    isConnected() {
-        return this.isConnected;
+    async close() {
+        try {
+            this.initialized = false;
+            this.arweave = null;
+            this.wallet = null;
+            logger.info('Arweave service closed');
+        } catch (error) {
+            logger.error('Failed to close Arweave service:', error);
+        }
     }
 }
 

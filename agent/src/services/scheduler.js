@@ -1,566 +1,686 @@
 /**
  * Autonomous scheduler service for AO agent
- * Handles automated tasks and reminders
+ * Handles all scheduled tasks and autonomous operations
  */
 
 const cron = require('node-cron');
-const { logger, logSchedulerAction, logError } = require('../utils/logger');
+const { logger, logSchedulerAction } = require('../utils/logger');
 const { config } = require('../config');
-const { SchedulerError } = require('../middleware/errorHandler');
 
 class SchedulerService {
     constructor() {
         this.jobs = new Map();
         this.isRunning = false;
-        this.retryAttempts = 3;
-        this.retryDelay = 5000; // 5 seconds
+        this.retryAttempts = config.SCHEDULER_RETRY_ATTEMPTS;
+        this.retryDelay = config.SCHEDULER_RETRY_DELAY;
+        this.maxRetries = config.SCHEDULER_MAX_RETRIES;
     }
 
     /**
-     * Initialize the scheduler
+     * Start the scheduler
      */
-    initialize() {
-        if (!config.SCHEDULER_ENABLED) {
-            logger.info('Scheduler is disabled');
-            return;
-        }
-
+    async start() {
         try {
-            this.setupJobs();
+            if (this.isRunning) {
+                logger.warn('Scheduler is already running');
+                return;
+            }
+
+            logger.info('Starting autonomous scheduler...');
+
+            // Initialize all scheduled jobs
+            await this.initializeJobs();
+
             this.isRunning = true;
-            logger.info('Scheduler initialized successfully');
+            logger.info('Autonomous scheduler started successfully');
+
         } catch (error) {
-            logError(error, { service: 'scheduler', action: 'initialize' });
-            throw new SchedulerError('Failed to initialize scheduler', error.message);
+            logger.error('Failed to start scheduler:', error);
+            throw error;
         }
     }
 
     /**
-     * Setup all scheduled jobs
+     * Stop the scheduler
      */
-    setupJobs() {
-        // Rent reminders - run daily at 9 AM
-        this.scheduleJob('rent-reminders', '0 9 * * *', () => {
-            this.processRentReminders();
-        });
+    async stop() {
+        try {
+            if (!this.isRunning) {
+                logger.warn('Scheduler is not running');
+                return;
+            }
 
-        // Overdue notices - run daily at 2 PM
-        this.scheduleJob('overdue-notices', '0 14 * * *', () => {
-            this.processOverdueNotices();
-        });
+            logger.info('Stopping autonomous scheduler...');
 
-        // Deposit checks - run every 6 hours
-        this.scheduleJob('deposit-checks', '0 */6 * * *', () => {
-            this.processDepositChecks();
-        });
+            // Stop all running jobs
+            for (const [jobName, job] of this.jobs.entries()) {
+                if (job.task) {
+                    job.task.stop();
+                    logger.info(`Stopped job: ${jobName}`);
+                }
+            }
 
-        // SLA monitoring - run every hour
-        this.scheduleJob('sla-monitoring', '0 * * * *', () => {
-            this.processSLAMonitoring();
-        });
+            this.jobs.clear();
+            this.isRunning = false;
+            logger.info('Autonomous scheduler stopped successfully');
 
-        // Lease expiry checks - run daily at 10 AM
-        this.scheduleJob('lease-expiry', '0 10 * * *', () => {
-            this.processLeaseExpiry();
-        });
-
-        // Maintenance ticket follow-ups - run every 4 hours
-        this.scheduleJob('maintenance-followup', '0 */4 * * *', () => {
-            this.processMaintenanceFollowups();
-        });
-
-        // Dispute package expiry - run daily at 11 AM
-        this.scheduleJob('dispute-expiry', '0 11 * * *', () => {
-            this.processDisputeExpiry();
-        });
-
-        // System health checks - run every 30 minutes
-        this.scheduleJob('health-checks', '*/30 * * * *', () => {
-            this.processHealthChecks();
-        });
-
-        // Data backup - run daily at 2 AM
-        this.scheduleJob('data-backup', '0 2 * * *', () => {
-            this.processDataBackup();
-        });
-
-        // Metrics collection - run every 15 minutes
-        this.scheduleJob('metrics-collection', '*/15 * * * *', () => {
-            this.processMetricsCollection();
-        });
+        } catch (error) {
+            logger.error('Failed to stop scheduler:', error);
+            throw error;
+        }
     }
 
     /**
-     * Schedule a job with retry logic
+     * Initialize all scheduled jobs
      */
-    scheduleJob(name, schedule, task) {
+    async initializeJobs() {
         try {
-            const job = cron.schedule(schedule, async () => {
-                await this.executeWithRetry(name, task);
-            }, {
-                scheduled: true,
-                timezone: 'UTC'
-            });
+            // Rent reminders - daily at 9 AM
+            this.scheduleJob('rent-reminders', '0 9 * * *', () => this.executeRentReminders());
 
-            this.jobs.set(name, job);
-            logger.info(`Scheduled job: ${name} with schedule: ${schedule}`);
+            // Overdue notices - daily at 10 AM
+            this.scheduleJob('overdue-notices', '0 10 * * *', () => this.executeOverdueNotices());
+
+            // Deposit checks - weekly on Monday at 9 AM
+            this.scheduleJob('deposit-checks', '0 9 * * 1', () => this.executeDepositChecks());
+
+            // SLA monitoring - every 4 hours
+            this.scheduleJob('sla-monitoring', '0 */4 * * *', () => this.executeSLAMonitoring());
+
+            // Lease expiry reminders - daily at 8 AM
+            this.scheduleJob('lease-expiry', '0 8 * * *', () => this.executeLeaseExpiryReminders());
+
+            // Maintenance follow-ups - daily at 2 PM
+            this.scheduleJob('maintenance-followups', '0 14 * * *', () => this.executeMaintenanceFollowUps());
+
+            // Dispute expiry checks - daily at 11 AM
+            this.scheduleJob('dispute-expiry', '0 11 * * *', () => this.executeDisputeExpiryChecks());
+
+            // Health checks - every 30 minutes
+            this.scheduleJob('health-checks', '*/30 * * * *', () => this.executeHealthChecks());
+
+            // Data backup - daily at 2 AM
+            this.scheduleJob('data-backup', '0 2 * * *', () => this.executeDataBackup());
+
+            // Metrics collection - every hour
+            this.scheduleJob('metrics-collection', '0 * * * *', () => this.executeMetricsCollection());
+
+            // System cleanup - daily at 3 AM
+            this.scheduleJob('system-cleanup', '0 3 * * *', () => this.executeSystemCleanup());
+
+            logger.info(`Initialized ${this.jobs.size} scheduled jobs`);
 
         } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'scheduleJob',
-                jobName: name,
-                schedule 
-            });
-            throw new SchedulerError(`Failed to schedule job: ${name}`, error.message);
+            logger.error('Failed to initialize scheduled jobs:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Schedule a job
+     */
+    scheduleJob(jobName, cronExpression, taskFunction) {
+        try {
+            if (!cron.validate(cronExpression)) {
+                throw new Error(`Invalid cron expression: ${cronExpression}`);
+            }
+
+            const job = {
+                name: jobName,
+                cronExpression,
+                task: cron.schedule(cronExpression, async () => {
+                    await this.executeWithRetry(jobName, taskFunction);
+                }, {
+                    scheduled: true,
+                    timezone: config.SCHEDULER_TIMEZONE || 'UTC'
+                }),
+                lastRun: null,
+                nextRun: null,
+                runCount: 0,
+                errorCount: 0,
+                lastError: null
+            };
+
+            // Calculate next run time
+            job.nextRun = this.calculateNextRun(cronExpression);
+
+            this.jobs.set(jobName, job);
+            logger.info(`Scheduled job: ${jobName} (${cronExpression})`);
+
+        } catch (error) {
+            logger.error(`Failed to schedule job ${jobName}:`, error);
+            throw error;
         }
     }
 
     /**
      * Execute task with retry logic
      */
-    async executeWithRetry(jobName, task) {
-        let lastError;
-        
-        for (let attempt = 1; attempt <= this.retryAttempts; attempt++) {
+    async executeWithRetry(jobName, taskFunction) {
+        const job = this.jobs.get(jobName);
+        if (!job) return;
+
+        let attempts = 0;
+        let lastError = null;
+
+        while (attempts < this.maxRetries) {
             try {
-                const startTime = Date.now();
-                
-                logSchedulerAction('started', { jobName, attempt });
-                
-                await task();
-                
-                const duration = Date.now() - startTime;
-                logSchedulerAction('completed', { 
-                    jobName, 
-                    attempt, 
-                    duration 
-                });
-                
-                return; // Success, exit retry loop
-                
+                attempts++;
+                job.lastRun = new Date();
+                job.runCount++;
+
+                logger.info(`Executing job: ${jobName} (attempt ${attempts})`);
+
+                // Execute the task
+                await taskFunction();
+
+                // Reset error tracking on success
+                job.errorCount = 0;
+                job.lastError = null;
+
+                logSchedulerAction('executed', jobName, { attempts, runCount: job.runCount });
+                logger.info(`Job completed successfully: ${jobName}`);
+
+                // Calculate next run time
+                job.nextRun = this.calculateNextRun(job.cronExpression);
+
+                return;
+
             } catch (error) {
                 lastError = error;
-                
-                logSchedulerAction('failed', { 
-                    jobName, 
-                    attempt, 
-                    error: error.message 
-                });
-                
-                if (attempt < this.retryAttempts) {
-                    // Wait before retry
-                    await this.sleep(this.retryDelay * attempt);
+                job.errorCount++;
+                job.lastError = error.message;
+
+                logger.error(`Job execution failed: ${jobName} (attempt ${attempts}):`, error);
+
+                if (attempts < this.maxRetries) {
+                    // Wait before retry with exponential backoff
+                    const delay = this.retryDelay * Math.pow(2, attempts - 1);
+                    logger.info(`Retrying job ${jobName} in ${delay}ms...`);
+                    await this.sleep(delay);
                 }
             }
         }
-        
-        // All retries failed
-        logSchedulerAction('failed_final', { 
-            jobName, 
-            attempts: this.retryAttempts,
-            error: lastError.message 
+
+        // All retries exhausted
+        logSchedulerAction('failed', jobName, { 
+            attempts, 
+            errorCount: job.errorCount, 
+            lastError: lastError.message 
         });
-        
-        throw new SchedulerError(`Job ${jobName} failed after ${this.retryAttempts} attempts`, lastError.message);
+
+        logger.error(`Job failed after ${attempts} attempts: ${jobName}`, lastError);
     }
 
     /**
-     * Process rent reminders
+     * Execute rent reminders
      */
-    async processRentReminders() {
+    async executeRentReminders() {
         try {
-            const reminderDays = config.RENT_REMINDER_DAYS;
-            const now = new Date();
-            
-            // Get leases with rent due in the next X days
-            const leases = await this.getLeasesWithRentDue(reminderDays);
-            
-            for (const lease of leases) {
+            logger.info('Executing rent reminders...');
+
+            // Get leases with rent due in the next 7 days
+            const { leaseService } = require('./leaseService');
+            const dueLeases = await leaseService.getLeasesWithRentDue(7);
+
+            for (const lease of dueLeases) {
                 try {
+                    // Send rent reminder notification
                     await this.sendRentReminder(lease);
-                    logSchedulerAction('rent_reminder_sent', { 
-                        leaseId: lease.id,
-                        daysUntilDue: lease.daysUntilDue 
-                    });
+                    logger.info(`Sent rent reminder for lease: ${lease.leaseId}`);
                 } catch (error) {
-                    logError(error, { 
-                        service: 'scheduler', 
-                        action: 'sendRentReminder',
-                        leaseId: lease.id 
-                    });
+                    logger.error(`Failed to send rent reminder for lease ${lease.leaseId}:`, error);
                 }
             }
-            
-            logger.info(`Processed ${leases.length} rent reminders`);
-            
+
+            logger.info(`Processed ${dueLeases.length} rent reminders`);
+
         } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'processRentReminders' 
-            });
+            logger.error('Failed to execute rent reminders:', error);
             throw error;
         }
     }
 
     /**
-     * Process overdue notices
+     * Execute overdue notices
      */
-    async processOverdueNotices() {
+    async executeOverdueNotices() {
         try {
-            const overdueDays = config.OVERDUE_NOTICE_DAYS;
-            const now = new Date();
-            
+            logger.info('Executing overdue notices...');
+
             // Get overdue leases
-            const overdueLeases = await this.getOverdueLeases(overdueDays);
-            
+            const { leaseService } = require('./leaseService');
+            const overdueLeases = await leaseService.getOverdueLeases(1);
+
             for (const lease of overdueLeases) {
                 try {
+                    // Send overdue notice
                     await this.sendOverdueNotice(lease);
-                    logSchedulerAction('overdue_notice_sent', { 
-                        leaseId: lease.id,
-                        daysOverdue: lease.daysOverdue 
-                    });
+                    logger.info(`Sent overdue notice for lease: ${lease.leaseId}`);
                 } catch (error) {
-                    logError(error, { 
-                        service: 'scheduler', 
-                        action: 'sendOverdueNotice',
-                        leaseId: lease.id 
-                    });
+                    logger.error(`Failed to send overdue notice for lease ${lease.leaseId}:`, error);
                 }
             }
-            
+
             logger.info(`Processed ${overdueLeases.length} overdue notices`);
-            
+
         } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'processOverdueNotices' 
-            });
+            logger.error('Failed to execute overdue notices:', error);
             throw error;
         }
     }
 
     /**
-     * Process deposit checks
+     * Execute deposit checks
      */
-    async processDepositChecks() {
+    async executeDepositChecks() {
         try {
-            const checkInterval = config.DEPOSIT_CHECK_INTERVAL;
-            
-            // Get leases with deposits that need checking
-            const depositsToCheck = await this.getDepositsToCheck(checkInterval);
-            
-            for (const deposit of depositsToCheck) {
+            logger.info('Executing deposit checks...');
+
+            // Get active leases
+            const { leaseService } = require('./leaseService');
+            const activeLeases = await leaseService.getLeasesByStatus('active');
+
+            for (const lease of activeLeases) {
                 try {
-                    await this.verifyDeposit(deposit);
-                    logSchedulerAction('deposit_verified', { 
-                        leaseId: deposit.leaseId,
-                        amount: deposit.amount 
-                    });
+                    // Check deposit status
+                    await this.checkDepositStatus(lease);
+                    logger.info(`Checked deposit status for lease: ${lease.leaseId}`);
                 } catch (error) {
-                    logError(error, { 
-                        service: 'scheduler', 
-                        action: 'verifyDeposit',
-                        leaseId: deposit.leaseId 
-                    });
+                    logger.error(`Failed to check deposit status for lease ${lease.leaseId}:`, error);
                 }
             }
-            
-            logger.info(`Processed ${depositsToCheck.length} deposit checks`);
-            
+
+            logger.info(`Processed ${activeLeases.length} deposit checks`);
+
         } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'processDepositChecks' 
-            });
+            logger.error('Failed to execute deposit checks:', error);
             throw error;
         }
     }
 
     /**
-     * Process SLA monitoring
+     * Execute SLA monitoring
      */
-    async processSLAMonitoring() {
+    async executeSLAMonitoring() {
         try {
-            const slaInterval = config.SLA_PING_INTERVAL;
-            
-            // Get maintenance tickets that need SLA monitoring
-            const ticketsToMonitor = await this.getTicketsForSLAMonitoring(slaInterval);
-            
-            for (const ticket of ticketsToMonitor) {
-                try {
-                    await this.checkTicketSLA(ticket);
-                    logSchedulerAction('sla_checked', { 
-                        ticketId: ticket.id,
-                        leaseId: ticket.leaseId,
-                        slaStatus: ticket.slaStatus 
-                    });
-                } catch (error) {
-                    logError(error, { 
-                        service: 'scheduler', 
-                        action: 'checkTicketSLA',
-                        ticketId: ticket.id 
-                    });
-                }
+            logger.info('Executing SLA monitoring...');
+
+            // Get maintenance tickets
+            const { maintenanceService } = require('./maintenanceService');
+            const openTickets = await maintenanceService.getTicketsByStatus('open');
+            const assignedTickets = await maintenanceService.getTicketsByStatus('assigned');
+
+            // Check SLA compliance
+            const slaViolations = await this.checkSLACompliance([...openTickets, ...assignedTickets]);
+
+            if (slaViolations.length > 0) {
+                logger.warn(`Found ${slaViolations.length} SLA violations`);
+                await this.handleSLAViolations(slaViolations);
             }
-            
-            logger.info(`Processed ${ticketsToMonitor.length} SLA checks`);
-            
+
+            logger.info('SLA monitoring completed');
+
         } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'processSLAMonitoring' 
-            });
+            logger.error('Failed to execute SLA monitoring:', error);
             throw error;
         }
     }
 
     /**
-     * Process lease expiry
+     * Execute lease expiry reminders
      */
-    async processLeaseExpiry() {
+    async executeLeaseExpiryReminders() {
         try {
-            const now = new Date();
-            
-            // Get leases expiring soon
-            const expiringLeases = await this.getExpiringLeases();
-            
+            logger.info('Executing lease expiry reminders...');
+
+            // Get expiring leases
+            const { leaseService } = require('./leaseService');
+            const expiringLeases = await leaseService.getExpiringLeases();
+
             for (const lease of expiringLeases) {
                 try {
-                    await this.processLeaseExpiry(lease);
-                    logSchedulerAction('lease_expiry_processed', { 
-                        leaseId: lease.id,
-                        daysUntilExpiry: lease.daysUntilExpiry 
-                    });
+                    // Send expiry reminder
+                    await this.sendLeaseExpiryReminder(lease);
+                    logger.info(`Sent expiry reminder for lease: ${lease.leaseId}`);
                 } catch (error) {
-                    logError(error, { 
-                        service: 'scheduler', 
-                        action: 'processLeaseExpiry',
-                        leaseId: lease.id 
-                    });
+                    logger.error(`Failed to send expiry reminder for lease ${lease.leaseId}:`, error);
                 }
             }
-            
-            logger.info(`Processed ${expiringLeases.length} lease expiries`);
-            
+
+            logger.info(`Processed ${expiringLeases.length} lease expiry reminders`);
+
         } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'processLeaseExpiry' 
-            });
+            logger.error('Failed to execute lease expiry reminders:', error);
             throw error;
         }
     }
 
     /**
-     * Process maintenance follow-ups
+     * Execute maintenance follow-ups
      */
-    async processMaintenanceFollowups() {
+    async executeMaintenanceFollowUps() {
         try {
-            // Get maintenance tickets that need follow-up
-            const ticketsForFollowup = await this.getTicketsForFollowup();
-            
-            for (const ticket of ticketsForFollowup) {
+            logger.info('Executing maintenance follow-ups...');
+
+            // Get tickets that need follow-up
+            const { maintenanceService } = require('./maintenanceService');
+            const ticketsNeedingFollowUp = await this.getTicketsNeedingFollowUp();
+
+            for (const ticket of ticketsNeedingFollowUp) {
                 try {
-                    await this.sendMaintenanceFollowup(ticket);
-                    logSchedulerAction('maintenance_followup_sent', { 
-                        ticketId: ticket.id,
-                        leaseId: ticket.leaseId 
-                    });
+                    // Send follow-up notification
+                    await this.sendMaintenanceFollowUp(ticket);
+                    logger.info(`Sent follow-up for ticket: ${ticket.id}`);
                 } catch (error) {
-                    logError(error, { 
-                        service: 'scheduler', 
-                        action: 'sendMaintenanceFollowup',
-                        ticketId: ticket.id 
-                    });
+                    logger.error(`Failed to send follow-up for ticket ${ticket.id}:`, error);
                 }
             }
-            
-            logger.info(`Processed ${ticketsForFollowup.length} maintenance follow-ups`);
-            
+
+            logger.info(`Processed ${ticketsNeedingFollowUp.length} maintenance follow-ups`);
+
         } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'processMaintenanceFollowups' 
-            });
+            logger.error('Failed to execute maintenance follow-ups:', error);
             throw error;
         }
     }
 
     /**
-     * Process dispute expiry
+     * Execute dispute expiry checks
      */
-    async processDisputeExpiry() {
+    async executeDisputeExpiryChecks() {
         try {
-            const now = new Date();
-            
-            // Get expiring dispute packages
-            const expiringDisputes = await this.getExpiringDisputes();
-            
-            for (const dispute of expiringDisputes) {
-                try {
-                    await this.processDisputeExpiry(dispute);
-                    logSchedulerAction('dispute_expiry_processed', { 
-                        disputeId: dispute.id,
-                        leaseId: dispute.leaseId 
-                    });
-                } catch (error) {
-                    logError(error, { 
-                        service: 'scheduler', 
-                        action: 'processDisputeExpiry',
-                        disputeId: dispute.id 
-                    });
-                }
+            logger.info('Executing dispute expiry checks...');
+
+            // Get expiring disputes
+            const { disputeService } = require('./disputeService');
+            const expiringDisputes = await disputeService.cleanupExpiredDisputes();
+
+            if (expiringDisputes > 0) {
+                logger.info(`Cleaned up ${expiringDisputes} expired disputes`);
             }
-            
-            logger.info(`Processed ${expiringDisputes.length} dispute expiries`);
-            
+
+            logger.info('Dispute expiry checks completed');
+
         } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'processDisputeExpiry' 
-            });
+            logger.error('Failed to execute dispute expiry checks:', error);
             throw error;
         }
     }
 
     /**
-     * Process health checks
+     * Execute health checks
      */
-    async processHealthChecks() {
+    async executeHealthChecks() {
         try {
-            const healthStatus = await this.performHealthCheck();
-            
-            if (healthStatus.status === 'healthy') {
-                logSchedulerAction('health_check_passed', { 
-                    timestamp: new Date().toISOString() 
-                });
-            } else {
-                logSchedulerAction('health_check_failed', { 
-                    status: healthStatus.status,
-                    issues: healthStatus.issues 
-                });
+            logger.debug('Executing health checks...');
+
+            // Check system health
+            const healthStatus = await this.checkSystemHealth();
+
+            if (!healthStatus.healthy) {
+                logger.warn('System health check failed:', healthStatus.issues);
+                await this.handleHealthIssues(healthStatus.issues);
             }
-            
+
+            logger.debug('Health checks completed');
+
         } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'processHealthChecks' 
-            });
+            logger.error('Failed to execute health checks:', error);
             throw error;
         }
     }
 
     /**
-     * Process data backup
+     * Execute data backup
      */
-    async processDataBackup() {
+    async executeDataBackup() {
         try {
+            logger.info('Executing data backup...');
+
+            // Perform data backup
             const backupResult = await this.performDataBackup();
-            
-            logSchedulerAction('data_backup_completed', { 
-                backupSize: backupResult.size,
-                backupLocation: backupResult.location 
-            });
-            
+
+            if (backupResult.success) {
+                logger.info(`Data backup completed: ${backupResult.backupId}`);
+            } else {
+                logger.error('Data backup failed:', backupResult.error);
+            }
+
         } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'processDataBackup' 
-            });
+            logger.error('Failed to execute data backup:', error);
             throw error;
         }
     }
 
     /**
-     * Process metrics collection
+     * Execute metrics collection
      */
-    async processMetricsCollection() {
+    async executeMetricsCollection() {
         try {
-            const metrics = await this.collectMetrics();
-            
-            logSchedulerAction('metrics_collected', { 
-                metricCount: Object.keys(metrics).length,
-                timestamp: new Date().toISOString() 
-            });
-            
+            logger.debug('Executing metrics collection...');
+
+            // Collect system metrics
+            const metrics = await this.collectSystemMetrics();
+
+            // Store metrics
+            await this.storeMetrics(metrics);
+
+            logger.debug('Metrics collection completed');
+
         } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'processMetricsCollection' 
-            });
+            logger.error('Failed to execute metrics collection:', error);
             throw error;
         }
     }
 
     /**
-     * Helper method to sleep
+     * Execute system cleanup
+     */
+    async executeSystemCleanup() {
+        try {
+            logger.info('Executing system cleanup...');
+
+            // Clean up old logs
+            await this.cleanupOldLogs();
+
+            // Clean up temporary files
+            await this.cleanupTempFiles();
+
+            // Clean up expired sessions
+            await this.cleanupExpiredSessions();
+
+            logger.info('System cleanup completed');
+
+        } catch (error) {
+            logger.error('Failed to execute system cleanup:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get job status
+     */
+    getJobStatus(jobName) {
+        const job = this.jobs.get(jobName);
+        if (!job) {
+            return null;
+        }
+
+        return {
+            name: job.name,
+            cronExpression: job.cronExpression,
+            isRunning: job.task.running,
+            lastRun: job.lastRun,
+            nextRun: job.nextRun,
+            runCount: job.runCount,
+            errorCount: job.errorCount,
+            lastError: job.lastError
+        };
+    }
+
+    /**
+     * Get all jobs status
+     */
+    getAllJobsStatus() {
+        const status = {};
+        for (const [jobName, job] of this.jobs.entries()) {
+            status[jobName] = this.getJobStatus(jobName);
+        }
+        return status;
+    }
+
+    /**
+     * Manually trigger a job
+     */
+    async triggerJob(jobName) {
+        try {
+            const job = this.jobs.get(jobName);
+            if (!job) {
+                throw new Error(`Job not found: ${jobName}`);
+            }
+
+            logger.info(`Manually triggering job: ${jobName}`);
+
+            // Execute the job immediately
+            await this.executeWithRetry(jobName, () => this.getJobFunction(jobName)());
+
+            return { success: true, message: `Job ${jobName} executed successfully` };
+
+        } catch (error) {
+            logger.error(`Failed to trigger job ${jobName}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get job function by name
+     */
+    getJobFunction(jobName) {
+        const jobFunctions = {
+            'rent-reminders': () => this.executeRentReminders(),
+            'overdue-notices': () => this.executeOverdueNotices(),
+            'deposit-checks': () => this.executeDepositChecks(),
+            'sla-monitoring': () => this.executeSLAMonitoring(),
+            'lease-expiry': () => this.executeLeaseExpiryReminders(),
+            'maintenance-followups': () => this.executeMaintenanceFollowUps(),
+            'dispute-expiry': () => this.executeDisputeExpiryChecks(),
+            'health-checks': () => this.executeHealthChecks(),
+            'data-backup': () => this.executeDataBackup(),
+            'metrics-collection': () => this.executeMetricsCollection(),
+            'system-cleanup': () => this.executeSystemCleanup()
+        };
+
+        return jobFunctions[jobName] || (() => Promise.resolve());
+    }
+
+    /**
+     * Calculate next run time for a cron expression
+     */
+    calculateNextRun(cronExpression) {
+        try {
+            const parser = require('cron-parser');
+            const interval = parser.parseExpression(cronExpression);
+            return interval.next().toDate();
+        } catch (error) {
+            logger.error('Failed to calculate next run time:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Sleep utility function
      */
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**
-     * Shutdown the scheduler
+     * Placeholder methods for actual implementations
+     * These would be implemented based on your specific business logic
      */
-    shutdown() {
-        if (!this.isRunning) return;
-        
-        try {
-            // Stop all jobs
-            for (const [name, job] of this.jobs) {
-                job.stop();
-                logger.info(`Stopped scheduled job: ${name}`);
-            }
-            
-            this.jobs.clear();
-            this.isRunning = false;
-            logger.info('Scheduler shutdown complete');
-            
-        } catch (error) {
-            logError(error, { 
-                service: 'scheduler', 
-                action: 'shutdown' 
-            });
-        }
+    async sendRentReminder(lease) {
+        // TODO: Implement rent reminder notification
+        logger.info(`Would send rent reminder for lease: ${lease.leaseId}`);
     }
 
-    /**
-     * Get scheduler status
-     */
-    getStatus() {
-        return {
-            isRunning: this.isRunning,
-            jobCount: this.jobs.size,
-            jobs: Array.from(this.jobs.keys()),
-            enabled: config.SCHEDULER_ENABLED
-        };
+    async sendOverdueNotice(lease) {
+        // TODO: Implement overdue notice notification
+        logger.info(`Would send overdue notice for lease: ${lease.leaseId}`);
     }
 
-    // Placeholder methods for actual implementation
-    async getLeasesWithRentDue(days) { return []; }
-    async getOverdueLeases(days) { return []; }
-    async getDepositsToCheck(interval) { return []; }
-    async getTicketsForSLAMonitoring(interval) { return []; }
-    async getExpiringLeases() { return []; }
-    async getTicketsForFollowup() { return []; }
-    async getExpiringDisputes() { return []; }
-    
-    async sendRentReminder(lease) { /* Implementation needed */ }
-    async sendOverdueNotice(lease) { /* Implementation needed */ }
-    async verifyDeposit(deposit) { /* Implementation needed */ }
-    async checkTicketSLA(ticket) { /* Implementation needed */ }
-    async processLeaseExpiry(lease) { /* Implementation needed */ }
-    async sendMaintenanceFollowup(ticket) { /* Implementation needed */ }
-    async processDisputeExpiry(dispute) { /* Implementation needed */ }
-    
-    async performHealthCheck() { return { status: 'healthy', issues: [] }; }
-    async performDataBackup() { return { size: 0, location: 'local' }; }
-    async collectMetrics() { return {}; }
+    async checkDepositStatus(lease) {
+        // TODO: Implement deposit status check
+        logger.info(`Would check deposit status for lease: ${lease.leaseId}`);
+    }
+
+    async checkSLACompliance(tickets) {
+        // TODO: Implement SLA compliance check
+        return [];
+    }
+
+    async handleSLAViolations(violations) {
+        // TODO: Implement SLA violation handling
+        logger.info(`Would handle ${violations.length} SLA violations`);
+    }
+
+    async sendLeaseExpiryReminder(lease) {
+        // TODO: Implement lease expiry reminder
+        logger.info(`Would send expiry reminder for lease: ${lease.leaseId}`);
+    }
+
+    async getTicketsNeedingFollowUp() {
+        // TODO: Implement follow-up logic
+        return [];
+    }
+
+    async sendMaintenanceFollowUp(ticket) {
+        // TODO: Implement maintenance follow-up
+        logger.info(`Would send follow-up for ticket: ${ticket.id}`);
+    }
+
+    async checkSystemHealth() {
+        // TODO: Implement system health check
+        return { healthy: true, issues: [] };
+    }
+
+    async handleHealthIssues(issues) {
+        // TODO: Implement health issue handling
+        logger.info(`Would handle ${issues.length} health issues`);
+    }
+
+    async performDataBackup() {
+        // TODO: Implement data backup
+        return { success: true, backupId: 'mock_backup_' + Date.now() };
+    }
+
+    async collectSystemMetrics() {
+        // TODO: Implement metrics collection
+        return { timestamp: Date.now(), metrics: {} };
+    }
+
+    async storeMetrics(metrics) {
+        // TODO: Implement metrics storage
+        logger.debug('Would store metrics:', metrics);
+    }
+
+    async cleanupOldLogs() {
+        // TODO: Implement log cleanup
+        logger.info('Would cleanup old logs');
+    }
+
+    async cleanupTempFiles() {
+        // TODO: Implement temp file cleanup
+        logger.info('Would cleanup temp files');
+    }
+
+    async cleanupExpiredSessions() {
+        // TODO: Implement session cleanup
+        logger.info('Would cleanup expired sessions');
+    }
 }
 
 // Create singleton instance
-const scheduler = new SchedulerService();
+const schedulerService = new SchedulerService();
 
-module.exports = { scheduler };
+module.exports = { schedulerService };

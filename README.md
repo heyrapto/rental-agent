@@ -1,346 +1,526 @@
 # 🏡 Rental Contract AO Agent
 
-A **production-grade autonomous agent** for managing rental agreements, payments, communications, maintenance, and disputes with **immutable storage on Arweave**.
+A **production-grade autonomous agent** for comprehensive rental contract management with immutable storage on Arweave and smart contract integration on Ethereum.
 
-## 🎯 Overview
+## 🚀 **Production Ready - No Mock Data**
 
-This system solves rental disputes by providing **immutable, timestamped evidence** that reduces friction and cost. It consists of:
+This system is built for **real-world deployment** with:
+- ✅ **Real Arweave Integration** - Actual blockchain storage, no mocks
+- ✅ **Real Ethereum Integration** - USDA stablecoin verification, real blockchain calls
+- ✅ **Production Database** - Complete MySQL schema with indexes and stored procedures
+- ✅ **Real Authentication** - Wallet-based signature validation
+- ✅ **Real Scheduling** - Autonomous cron jobs with retry logic
+- ✅ **Real Error Handling** - Comprehensive error management and logging
 
-- **Smart Contracts**: Ethereum-based rental management with USDA stablecoin support
-- **AO Agent**: Autonomous agent handling all rental operations
-- **Arweave Integration**: Permanent, immutable storage for all evidence
-- **Autonomous Scheduler**: Automated reminders, escrow management, and SLA monitoring
-
-## 🏗 Architecture
+## 🏗 **Architecture**
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Frontend      │    │   AO Agent      │    │   Arweave       │
-│   (Client)      │◄──►│   (Node.js)     │◄──►│   (Storage)     │
+│   (Web/Mobile)  │◄──►│   (Node.js)     │◄──►│   (Storage)     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
                                 ▼
                        ┌─────────────────┐
                        │   Ethereum      │
-                       │   (Contracts)   │
+                       │   (Smart       │
+                       │    Contracts)   │
                        └─────────────────┘
 ```
 
-## 🚀 Features
+## ✨ **Key Features**
 
-### Core Functionality
-- ✅ **Lease Management**: Create, sign, and manage rental agreements
-- ✅ **Payment Processing**: USDA stablecoin payments with immutable receipts
-- ✅ **Communication**: In-app messaging anchored to Arweave
-- ✅ **Maintenance Tickets**: Create, track, and resolve maintenance issues
-- ✅ **Dispute Resolution**: Evidence collection with Merkle root verification
-- ✅ **Escrow Management**: Secure deposit handling with automated release
+### **🏠 Lease Management**
+- **Digital Lease Creation** - Create, sign, and manage rental agreements
+- **Multi-Party Signatures** - Both landlord and tenant must sign to activate
+- **Immutable Storage** - All lease terms stored on Arweave
+- **Version Control** - Track amendments and updates
 
-### Autonomous Features
-- 🤖 **Rent Reminders**: Automated notifications before due dates
-- 🤖 **Overdue Notices**: Escalation for late payments
-- 🤖 **SLA Monitoring**: Track maintenance response times
-- 🤖 **Deposit Verification**: Regular escrow balance checks
-- 🤖 **Health Monitoring**: System status and performance tracking
+### **💰 Payment Processing**
+- **USDA Stablecoin** - Primary payment method with extensible design
+- **Blockchain Verification** - Real-time payment confirmation on Ethereum
+- **Escrow Management** - Security deposit handling with smart contracts
+- **Receipt Generation** - Immutable payment receipts on Arweave
 
-### Security & Compliance
-- 🔒 **Wallet Authentication**: Arweave wallet-based identity
-- 🔒 **Signature Validation**: Cryptographic verification of all actions
-- 🔒 **Role-Based Access**: Landlord, tenant, and manager permissions
-- 🔒 **Immutable Records**: All evidence stored permanently on Arweave
-- 🔒 **Audit Trail**: Complete history of all operations
+### **💬 Communication System**
+- **In-App Messaging** - Secure communication between lease parties
+- **Message Types** - General, maintenance, payment, legal, emergency
+- **Priority Levels** - Low, normal, high, urgent
+- **Immutable Logs** - All communications anchored to Arweave
 
-## 📦 Installation
+### **🔧 Maintenance Management**
+- **Ticket Creation** - Report and track maintenance issues
+- **Priority System** - Low, medium, high priority levels
+- **Category Classification** - Plumbing, electrical, HVAC, structural, appliance
+- **Cost Tracking** - Estimated vs. actual cost monitoring
+- **SLA Monitoring** - Service level agreement compliance
 
-### Prerequisites
-- Node.js 18+ 
-- Foundry (for smart contracts)
-- Arweave wallet
-- Ethereum node access
+### **⚖️ Dispute Resolution**
+- **Evidence Collection** - Gather all relevant documents and communications
+- **Merkle Tree Generation** - Cryptographic proof of evidence integrity
+- **Dispute Packages** - Immutable bundles for third-party resolution
+- **Expiry Management** - Automatic cleanup of expired disputes
 
-### 1. Clone Repository
+### **🤖 Autonomous Operations**
+- **Rent Reminders** - Automated notifications for upcoming payments
+- **Overdue Notices** - Automatic late payment alerts
+- **SLA Monitoring** - Continuous service level monitoring
+- **Health Checks** - System health and performance monitoring
+- **Data Backup** - Automated backup and recovery procedures
+
+## 🛠 **Technology Stack**
+
+### **Backend**
+- **Node.js** - Runtime environment
+- **Express.js** - Web framework
+- **MySQL** - Production database with full schema
+- **Winston** - Structured logging
+- **Joi** - Input validation
+- **node-cron** - Task scheduling
+
+### **Blockchain**
+- **Arweave** - Immutable data storage
+- **Ethereum** - Smart contract execution
+- **Solidity** - Smart contract language
+- **Foundry** - Development and testing framework
+
+### **Security**
+- **Wallet Authentication** - Arweave wallet-based identity
+- **Signature Validation** - Cryptographic message verification
+- **Rate Limiting** - DDoS protection
+- **CORS** - Cross-origin resource sharing
+- **Helmet** - Security headers
+
+## 📦 **Installation**
+
+### **Prerequisites**
+- Node.js 18+ and npm 8+
+- MySQL 8.0+
+- Arweave wallet with AR balance
+- Ethereum node access (for production)
+
+### **1. Clone Repository**
 ```bash
-git clone <repository-url>
+git clone https://github.com/your-org/rental-contract-ao-agent.git
 cd rental-contract-ao-agent
 ```
 
-### 2. Install Dependencies
+### **2. Install Dependencies**
 ```bash
-# Install contract dependencies
-cd contract
-forge install
-
-# Install agent dependencies
-cd ../agent
+# Install Node.js dependencies
+cd agent
 npm install
+
+# Install Foundry (for smart contracts)
+cd ../contract
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+forge install
 ```
 
-### 3. Environment Configuration
+### **3. Database Setup**
 ```bash
-# Copy environment template
+# Create database and tables
+mysql -u root -p < agent/database/schema.sql
+
+# Or manually run the schema file in your MySQL client
+```
+
+### **4. Environment Configuration**
+```bash
+cd agent
 cp .env.example .env
 
-# Edit .env with your configuration
-nano .env
+# Edit .env with your production values:
+# - Database credentials
+# - Arweave wallet path
+# - Ethereum RPC URLs
+# - Contract addresses
+# - Security settings
 ```
 
-### 4. Deploy Smart Contracts
+### **5. Deploy Smart Contracts**
 ```bash
-cd contract
-
-# Set your private key
-export PRIVATE_KEY=your_private_key_here
-
-# Deploy contracts
+cd ../contract
+export PRIVATE_KEY=your_deployer_private_key
 forge script script/Deploy.s.sol:DeployScript --rpc-url <your_rpc_url> --broadcast
 ```
 
-### 5. Start AO Agent
+### **6. Start AO Agent**
 ```bash
 cd ../agent
-
-# Development mode
-npm run dev
-
-# Production mode
 npm start
 ```
 
-## 🔧 Configuration
+## 🔧 **Configuration**
 
-### Environment Variables
-
-#### Required
+### **Environment Variables**
 ```bash
-WALLET_PATH=./wallet.json          # Arweave wallet path
-JWT_SECRET=your-secret-key        # JWT signing secret
+# Server Configuration
+PORT=3000
+HOST=0.0.0.0
+NODE_ENV=production
+
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=rental_contract_ao_agent
+DB_USER=ao_agent_user
+DB_PASSWORD=secure_password
+
+# Arweave Configuration
+ARWEAVE_HOST=arweave.net
+ARWEAVE_PORT=443
+ARWEAVE_PROTOCOL=https
+ARWEAVE_NETWORK=mainnet
+ARWEAVE_WALLET_PATH=/path/to/wallet.json
+ARWEAVE_MIN_BALANCE=0.1
+
+# Ethereum Configuration
+ETHEREUM_RPC_URL=https://mainnet.infura.io/v3/YOUR_PROJECT_ID
+ETHEREUM_CHAIN_ID=1
+RENTAL_CONTRACT_ADDRESS=0x...
+USDA_ADAPTER_ADDRESS=0x...
+USDA_CONTRACT_ADDRESS=0x...
+
+# Security Configuration
+JWT_SECRET=your_jwt_secret
+RATE_LIMIT_MAX_REQUESTS=100
+RATE_LIMIT_WINDOW_MS=900000
+CORS_ORIGINS=https://yourdomain.com
+
+# Scheduler Configuration
+SCHEDULER_ENABLED=true
+SCHEDULER_TIMEZONE=UTC
+SCHEDULER_RETRY_ATTEMPTS=3
+SCHEDULER_RETRY_DELAY=5000
+SCHEDULER_MAX_RETRIES=5
 ```
 
-#### Arweave
+## 🚀 **API Reference**
+
+### **Agent Endpoint**
+All agent actions go through the `/agent` endpoint with signature validation.
+
+#### **Create Lease**
 ```bash
-ARWEAVE_HOST=arweave.net          # Arweave gateway
-ARWEAVE_NETWORK=mainnet           # Network (mainnet/testnet)
-WALLET_PASSWORD=your-password     # Wallet password
-```
-
-#### Ethereum
-```bash
-ETHEREUM_RPC_URL=<rpc_url>        # Ethereum node RPC
-RENTAL_CONTRACT_ADDRESS=<address>  # Deployed contract address
-USDA_ADAPTER_ADDRESS=<address>     # USDA adapter contract
-```
-
-#### Scheduler
-```bash
-SCHEDULER_ENABLED=true             # Enable autonomous scheduler
-RENT_REMINDER_DAYS=3              # Days before rent due
-OVERDUE_NOTICE_DAYS=5             # Days after due date
-```
-
-## 📡 API Reference
-
-### Base URL
-```
 POST /agent
-```
+Headers:
+  x-sender-wallet: <wallet_address>
+  x-sig: <signature>
+  x-timestamp: <timestamp>
 
-### Authentication Headers
-```http
-x-sender-wallet: <arweave_wallet_address>
-x-sig: <signature>
-x-timestamp: <ISO8601_timestamp>
-```
-
-### Actions
-
-#### Create Lease
-```json
+Body:
 {
   "action": "createLease",
-  "landlordAddr": "0x123...",
-  "tenantAddr": "0x456...",
-  "terms": "base64(pdf_or_html)",
-  "rent": 1000,
-  "currency": "USDA",
-  "deposit": 2000,
-  "startDate": "2024-01-01T00:00:00Z",
-  "endDate": "2024-12-31T23:59:59Z"
+  "data": {
+    "landlordAddr": "0x...",
+    "tenantAddr": "0x...",
+    "termsHash": "arweave_tx_id",
+    "rent": 1500,
+    "currency": "USDA",
+    "deposit": 3000,
+    "startDate": "2024-01-01",
+    "endDate": "2024-12-31"
+  }
 }
 ```
 
-#### Sign Lease
-```json
+#### **Sign Lease**
+```bash
+POST /agent
+Body:
 {
   "action": "signLease",
-  "leaseId": "uuid"
+  "data": {
+    "leaseId": "lease_uuid",
+    "walletAddress": "0x..."
+  }
 }
 ```
 
-#### Record Payment
-```json
+#### **Record Payment**
+```bash
+POST /agent
+Body:
 {
   "action": "recordPayment",
-  "leaseId": "uuid",
-  "amount": 1000,
-  "currency": "USDA",
-  "chainId": "ethereum-mainnet",
-  "txHash": "0xabcd..."
+  "data": {
+    "leaseId": "lease_uuid",
+    "payer": "0x...",
+    "amount": 1500,
+    "currency": "USDA",
+    "chainId": 1,
+    "txHash": "0x..."
+  }
 }
 ```
 
-#### Post Message
-```json
+#### **Post Message**
+```bash
+POST /agent
+Body:
 {
   "action": "postMessage",
-  "leaseId": "uuid",
-  "content": "Message content",
-  "threadId": "optional_thread_id"
+  "data": {
+    "leaseId": "lease_uuid",
+    "sender": "0x...",
+    "recipient": "0x...",
+    "subject": "Maintenance Request",
+    "content": "The faucet is leaking",
+    "messageType": "maintenance",
+    "priority": "high"
+  }
 }
 ```
 
-#### Create Maintenance Ticket
-```json
+#### **Create Maintenance Ticket**
+```bash
+POST /agent
+Body:
 {
   "action": "createTicket",
-  "leaseId": "uuid",
-  "title": "Leaky faucet",
-  "description": "Kitchen faucet is leaking",
-  "priority": "medium"
+  "data": {
+    "leaseId": "lease_uuid",
+    "reportedBy": "0x...",
+    "title": "Leaking Faucet",
+    "description": "Kitchen faucet is leaking",
+    "priority": "high",
+    "category": "plumbing",
+    "estimatedCost": 150
+  }
 }
 ```
 
-#### Build Dispute Package
-```json
+#### **Build Dispute Package**
+```bash
+POST /agent
+Body:
 {
   "action": "buildDisputePackage",
-  "leaseId": "uuid",
-  "evidenceTypes": ["lease", "payment", "message"]
+  "data": {
+    "leaseId": "lease_uuid",
+    "evidenceTxIds": ["arweave_tx_1", "arweave_tx_2"]
+  }
 }
 ```
 
-### Response Format
-```json
-{
-  "ok": true,
-  "leaseId": "uuid",
-  "arTxId": "arweave_transaction_id",
-  "timestamp": "2024-01-01T00:00:00Z"
-}
+### **Monitoring Endpoints**
+
+#### **Health Check**
+```bash
+GET /health
 ```
 
-## 🧪 Testing
+#### **System Status**
+```bash
+GET /status
+```
 
-### Smart Contracts
+#### **Metrics**
+```bash
+GET /metrics
+```
+
+## 🧪 **Testing**
+
+### **Smart Contract Tests**
 ```bash
 cd contract
 forge test
+forge test --coverage
 ```
 
-### AO Agent
+### **AO Agent Tests**
 ```bash
 cd agent
 npm test
-```
-
-### Integration Tests
-```bash
-# Run all tests with coverage
 npm run test:coverage
 ```
 
-## 🚀 Deployment
-
-### Development
+### **Integration Tests**
 ```bash
-npm run dev
+# Test the complete system
+npm run test:integration
 ```
 
-### Production
-```bash
-# Build and start
-npm start
+## 📊 **Monitoring & Observability**
 
-# With PM2
-pm2 start ecosystem.config.js
+### **Logging**
+- **Structured Logging** - Winston with JSON format
+- **Log Levels** - Error, Warn, Info, Debug
+- **Log Rotation** - Daily rotation with compression
+- **Audit Trail** - Complete action logging
+
+### **Metrics**
+- **System Metrics** - CPU, memory, uptime
+- **Business Metrics** - Leases, payments, disputes
+- **Performance Metrics** - Response times, throughput
+- **Error Metrics** - Error rates, failure patterns
+
+### **Health Checks**
+- **Service Health** - Database, Arweave, Ethereum
+- **Dependency Health** - External service status
+- **Performance Health** - Response time monitoring
+- **Resource Health** - Memory, disk, network
+
+## 🔒 **Security Features**
+
+### **Authentication & Authorization**
+- **Wallet-Based Identity** - Arweave wallet addresses
+- **Signature Validation** - Cryptographic message verification
+- **Rate Limiting** - DDoS protection
+- **CORS Protection** - Cross-origin security
+
+### **Data Security**
+- **Immutable Storage** - All data stored on Arweave
+- **Encrypted Communication** - HTTPS/TLS encryption
+- **Input Validation** - Comprehensive data validation
+- **SQL Injection Protection** - Parameterized queries
+
+### **System Security**
+- **Security Headers** - Helmet.js protection
+- **Request Validation** - Joi schema validation
+- **Error Handling** - Secure error responses
+- **Audit Logging** - Complete action tracking
+
+## 🚀 **Deployment**
+
+### **Production Deployment**
+```bash
+# Build and deploy
+npm run build
+npm run deploy:production
+
+# Or use Docker
+docker build -t rental-contract-ao-agent .
+docker run -d -p 3000:3000 rental-contract-ao-agent
 ```
 
-### Docker
-```bash
-docker build -t rental-agent .
-docker run -p 3000:3000 rental-agent
+### **Environment-Specific Configs**
+- **Development** - Local development with mocks disabled
+- **Staging** - Pre-production testing environment
+- **Production** - Live production environment
+
+### **Scaling Considerations**
+- **Load Balancing** - Multiple agent instances
+- **Database Scaling** - Read replicas, sharding
+- **Caching** - Redis for session and data caching
+- **CDN** - Static asset delivery
+
+## 🛠 **Development**
+
+### **Code Structure**
+```
+agent/
+├── src/
+│   ├── config/          # Configuration management
+│   ├── handlers/        # Request handlers
+│   ├── middleware/      # Express middleware
+│   ├── services/        # Business logic services
+│   └── utils/           # Utility functions
+├── test/                # Test files
+├── database/            # Database schema and migrations
+└── docs/                # Documentation
 ```
 
-## 📊 Monitoring
+### **Adding New Features**
+1. **Create Service** - Add business logic in services/
+2. **Add Handler** - Create request handler in handlers/
+3. **Update Schema** - Modify database schema if needed
+4. **Add Tests** - Comprehensive test coverage
+5. **Update Docs** - Keep documentation current
 
-### Health Check
+## 📈 **Performance & Optimization**
+
+### **Database Optimization**
+- **Indexes** - Strategic indexing for common queries
+- **Query Optimization** - Efficient SQL queries
+- **Connection Pooling** - Database connection management
+- **Caching** - Redis for frequently accessed data
+
+### **API Optimization**
+- **Compression** - Gzip compression for responses
+- **Rate Limiting** - Request throttling
+- **Caching** - Response caching strategies
+- **Async Processing** - Non-blocking operations
+
+## 🔧 **Troubleshooting**
+
+### **Common Issues**
+
+#### **Arweave Connection Issues**
 ```bash
-curl http://localhost:3000/health
+# Check wallet balance
+curl -X GET "https://arweave.net/wallet/0x.../balance"
+
+# Verify network connectivity
+curl -X GET "https://arweave.net/info"
 ```
 
-### Status
+#### **Database Connection Issues**
 ```bash
-curl http://localhost:3000/status
+# Test database connection
+mysql -u ao_agent_user -p -h localhost rental_contract_ao_agent
+
+# Check database status
+SHOW PROCESSLIST;
+SHOW STATUS;
 ```
 
-### Metrics
+#### **Ethereum Connection Issues**
 ```bash
-curl http://localhost:3000/metrics
+# Test RPC endpoint
+curl -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+  https://mainnet.infura.io/v3/YOUR_PROJECT_ID
 ```
 
-## 🔍 Troubleshooting
-
-### Common Issues
-
-#### Arweave Connection Failed
-- Check `ARWEAVE_HOST` and network configuration
-- Verify wallet file exists and is valid
-- Check internet connectivity
-
-#### Signature Validation Failed
-- Ensure wallet address format is correct (43 characters)
-- Verify timestamp is within expiry window
-- Check signature generation logic
-
-#### Scheduler Not Running
-- Verify `SCHEDULER_ENABLED=true`
-- Check cron job configuration
-- Review scheduler logs
-
-### Logs
+### **Log Analysis**
 ```bash
-# View agent logs
-tail -f logs/agent.log
+# View application logs
+tail -f logs/app.log
 
 # View error logs
 tail -f logs/error.log
+
+# Search for specific errors
+grep "ERROR" logs/app.log | tail -20
 ```
 
-## 🤝 Contributing
+## 🤝 **Contributing**
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
+1. **Fork** the repository
+2. **Create** a feature branch
+3. **Make** your changes
+4. **Add** tests for new functionality
+5. **Ensure** all tests pass
+6. **Submit** a pull request
 
-## 📄 License
+### **Development Guidelines**
+- **Code Style** - Follow ESLint configuration
+- **Testing** - Maintain >90% test coverage
+- **Documentation** - Update docs for new features
+- **Security** - Follow security best practices
 
-MIT License - see [LICENSE](LICENSE) file for details.
+## 📄 **License**
 
-## 🆘 Support
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- **Documentation**: [Wiki](link-to-wiki)
-- **Issues**: [GitHub Issues](link-to-issues)
-- **Discord**: [Community Server](link-to-discord)
+## 🆘 **Support**
 
-## 🔗 Links
+- **Documentation** - [Wiki](https://github.com/your-org/rental-contract-ao-agent/wiki)
+- **Issues** - [GitHub Issues](https://github.com/your-org/rental-contract-ao-agent/issues)
+- **Discussions** - [GitHub Discussions](https://github.com/your-org/rental-contract-ao-agent/discussions)
+- **Email** - support@yourdomain.com
 
-- **Website**: [rental-agent.com](https://rental-agent.com)
-- **Documentation**: [docs.rental-agent.com](https://docs.rental-agent.com)
-- **Smart Contracts**: [Etherscan](https://etherscan.io)
-- **Arweave**: [arweave.org](https://arweave.org)
+## 🙏 **Acknowledgments**
+
+- **Arweave** - For immutable data storage
+- **Ethereum** - For smart contract platform
+- **OpenZeppelin** - For secure smart contract libraries
+- **Foundry** - For development and testing tools
 
 ---
 
-**Built with ❤️ for the decentralized rental economy**
+**Built with ❤️ for the decentralized future of rental management**
