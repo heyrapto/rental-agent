@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title USDAAdapter
  * @dev Adapter for USDA stablecoin payments and escrow management
  */
-contract USDAAdapter is ReentrancyGuard, Ownable {
+contract USDAAdapter is ReentrancyGuard, Ownable, Pausable {
     using ECDSA for bytes32;
 
     struct Escrow {
@@ -45,6 +46,8 @@ contract USDAAdapter is ReentrancyGuard, Ownable {
     event PaymentVerified(string indexed leaseId, string indexed txHash, uint256 amount);
     event EscrowFeeUpdated(uint256 newFee);
     event EscrowLimitsUpdated(uint256 minAmount, uint256 maxAmount);
+
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
     modifier onlyLeaseParty(string memory leaseId) {
         Escrow storage escrow = escrows[leaseId];

@@ -33,7 +33,7 @@ contract RentalContractTest is Test {
         startDate = block.timestamp + 1 days;
         endDate = block.timestamp + 365 days;
         
-        rentalContract = new RentalContract();
+        rentalContract = new RentalContract(address(this));
     }
 
     function testCreateLease() public {
@@ -165,7 +165,7 @@ contract RentalContractTest is Test {
             startDate,
             endDate,
             rentAmount,
-            -100,
+            0,
             "USDA",
             TERMS_HASH
         );
@@ -242,7 +242,7 @@ contract RentalContractTest is Test {
         vm.stopPrank();
         
         // Verify signature count
-        (,,,,,,,,, uint256 signatureCount,,) = rentalContract.getLease(LEASE_ID);
+        (,,,,,,,,,, uint256 signatureCount,,) = rentalContract.getLease(LEASE_ID);
         assertEq(signatureCount, 1);
         
         // Tenant signs
@@ -259,7 +259,7 @@ contract RentalContractTest is Test {
         assertEq(uint256(status), uint256(RentalContract.LeaseStatus.ACTIVE));
         
         // Verify signature count
-        (,,,,,,,,, signatureCount,,) = rentalContract.getLease(LEASE_ID);
+        (,,,,,,,,,, signatureCount,,) = rentalContract.getLease(LEASE_ID);
         assertEq(signatureCount, 2);
     }
 
@@ -331,7 +331,7 @@ contract RentalContractTest is Test {
         rentalContract.updateArweaveTx(LEASE_ID, ARWEAVE_TX);
         
         // Verify update
-        (,,,,,,,, string memory arweaveTxId,,) = rentalContract.getLease(LEASE_ID);
+        (,,,,,,,, string memory arweaveTxId,,,) = rentalContract.getLease(LEASE_ID);
         assertEq(arweaveTxId, ARWEAVE_TX);
         
         vm.stopPrank();

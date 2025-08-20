@@ -14,15 +14,15 @@ contract DeployScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy RentalContract
-        RentalContract rentalContract = new RentalContract();
+        RentalContract rentalContract = new RentalContract(deployer);
         console.log("RentalContract deployed at:", address(rentalContract));
 
         // Deploy USDAAdapter
-        USDAAdapter usdaAdapter = new USDAAdapter();
+        USDAAdapter usdaAdapter = new USDAAdapter(deployer);
         console.log("USDAAdapter deployed at:", address(usdaAdapter));
 
         // Deploy DisputeResolution
-        DisputeResolution disputeResolution = new DisputeResolution();
+        DisputeResolution disputeResolution = new DisputeResolution(deployer);
         console.log("DisputeResolution deployed at:", address(disputeResolution));
 
         vm.stopBroadcast();

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -54,6 +54,8 @@ contract RentalContract is ReentrancyGuard, Ownable {
     event LeaseTerminated(string indexed leaseId);
     event PaymentRecorded(string indexed leaseId, address indexed payer, uint256 amount);
     event ArweaveUpdated(string indexed leaseId, string arweaveTxId);
+
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
     modifier onlyLeaseParty(string memory leaseId) {
         Lease storage lease = leases[leaseId];

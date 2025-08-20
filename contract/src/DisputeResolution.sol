@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
@@ -49,6 +49,8 @@ contract DisputeResolution is ReentrancyGuard, Ownable {
     event EvidenceVerified(string indexed leaseId, string indexed evidenceId);
     event DisputeResolved(string indexed leaseId, string indexed disputeId, string resolution);
     event DisputeExpired(string indexed leaseId, string indexed disputeId);
+
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
     modifier onlyLeaseParty(string memory leaseId) {
         // This would need to be integrated with the RentalContract to verify lease parties
