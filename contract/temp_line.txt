@@ -1,0 +1,1 @@
+        (,,,,,,,,, RentalContract.LeaseStatus status,,) = rentalContract.getLease(LEASE_ID);
