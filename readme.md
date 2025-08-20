@@ -1,100 +1,346 @@
-1) *One‑page Overview* 
- *Problem* : Rental disputes often arise from missing or alterable records (contracts, payments, communications). Immutable, timestamped evidence reduces friction and cost.
+# 🏡 Rental Contract AO Agent
 
- *Solution* : An AO autonomous agent that records and manages rental contracts, payment receipts (including USDA stablecoin), communications, and maintenance workflows, storing all evidence on Arweave permanently.
+A **production-grade autonomous agent** for managing rental agreements, payments, communications, maintenance, and disputes with **immutable storage on Arweave**.
 
- *Users* : Landlords, Tenants; optional Property Managers and Mediators.
+## 🎯 Overview
 
-2) *Functional Requirements* 
-A. *Identity and Roles* 
+This system solves rental disputes by providing **immutable, timestamped evidence** that reduces friction and cost. It consists of:
 
-Roles: Landlord, Tenant, Manager, Agent Admin.
+- **Smart Contracts**: Ethereum-based rental management with USDA stablecoin support
+- **AO Agent**: Autonomous agent handling all rental operations
+- **Arweave Integration**: Permanent, immutable storage for all evidence
+- **Autonomous Scheduler**: Automated reminders, escrow management, and SLA monitoring
 
-Wallet‑based auth (Arweave wallet address) and role binding per lease record.
+## 🏗 Architecture
 
-B. *Lease Lifecycle* 
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   AO Agent      │    │   Arweave       │
+│   (Client)      │◄──►│   (Node.js)     │◄──►│   (Storage)     │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │   Ethereum      │
+                       │   (Contracts)   │
+                       └─────────────────┘
+```
 
-Create lease draft (metadata + PDF/HTML body hash).
+## 🚀 Features
 
-Invite counter‑party; both sign digitally; agent verifies signatures; persist final lease and metadata to Arweave.
+### Core Functionality
+- ✅ **Lease Management**: Create, sign, and manage rental agreements
+- ✅ **Payment Processing**: USDA stablecoin payments with immutable receipts
+- ✅ **Communication**: In-app messaging anchored to Arweave
+- ✅ **Maintenance Tickets**: Create, track, and resolve maintenance issues
+- ✅ **Dispute Resolution**: Evidence collection with Merkle root verification
+- ✅ **Escrow Management**: Secure deposit handling with automated release
 
-Versioning: amendments create new immutable objects linked via parent_tx.
+### Autonomous Features
+- 🤖 **Rent Reminders**: Automated notifications before due dates
+- 🤖 **Overdue Notices**: Escalation for late payments
+- 🤖 **SLA Monitoring**: Track maintenance response times
+- 🤖 **Deposit Verification**: Regular escrow balance checks
+- 🤖 **Health Monitoring**: System status and performance tracking
 
-C. *Payments* 
+### Security & Compliance
+- 🔒 **Wallet Authentication**: Arweave wallet-based identity
+- 🔒 **Signature Validation**: Cryptographic verification of all actions
+- 🔒 **Role-Based Access**: Landlord, tenant, and manager permissions
+- 🔒 **Immutable Records**: All evidence stored permanently on Arweave
+- 🔒 **Audit Trail**: Complete history of all operations
 
-Accept rent and deposit in multiple assets with emphasis on USDA stablecoin; confirm on-chain payment; generate immutable receipt stored on Arweave; update lease balance and status.
+## 📦 Installation
 
-Escrow flows: hold security deposit in USDA escrow; programmable release at lease end or partial release after deduction.
+### Prerequisites
+- Node.js 18+ 
+- Foundry (for smart contracts)
+- Arweave wallet
+- Ethereum node access
 
-D. *Communications & Maintenance* 
+### 1. Clone Repository
+```bash
+git clone <repository-url>
+cd rental-contract-ao-agent
+```
 
-In‑app messaging; every message appended and anchored to Arweave with conversation/thread IDs.
+### 2. Install Dependencies
+```bash
+# Install contract dependencies
+cd contract
+forge install
 
-Maintenance ticketing: create, assign, status transitions, photos/doc uploads; all state changes logged immutably.
+# Install agent dependencies
+cd ../agent
+npm install
+```
 
-E. *Dispute Package* 
+### 3. Environment Configuration
+```bash
+# Copy environment template
+cp .env.example .env
 
-On request, assemble signed, timestamped bundle of all relevant artifacts (lease, receipts, messages, tickets) with Merkle root; publish to Arweave for third‑party review.
+# Edit .env with your configuration
+nano .env
+```
 
-F. *Autonomy & Uptime* 
+### 4. Deploy Smart Contracts
+```bash
+cd contract
 
-Scheduler inside AO agent: monthly rent reminders, overdue notices, deposit release checks, and SLA pings.
+# Set your private key
+export PRIVATE_KEY=your_private_key_here
 
-Must operate autonomously for 72+ hours with retries and backoff; logs and metrics written to Arweave/Gateway per interval.
+# Deploy contracts
+forge script script/Deploy.s.sol:DeployScript --rpc-url <your_rpc_url> --broadcast
+```
 
-3) *Non‑Functional Requirements* 
- *Permanence* : All critical artifacts must be stored in Arweave with content hash, tags, and indexes to enable retrieval.
+### 5. Start AO Agent
+```bash
+cd ../agent
 
- *Security* : Signature verification on every state‑mutating request; access control lists per lease.
+# Development mode
+npm run dev
 
- *Privacy* : Store PII minimally; consider encrypting file payloads client‑side and persisting ciphertext + access policy off‑chain; publish only necessary metadata hashes.
+# Production mode
+npm start
+```
 
- *Cost* : Minimize AR storage by compressing documents and batching logs.
+## 🔧 Configuration
 
- *Observability* : Message traces and state snapshots for debugging; qualifies for Best Docs when documented thoroughly.
+### Environment Variables
 
-4) *Architecture* 
- *AO Agent* (AOS/TypeScript or Lua): HTTP message handlers for actions (createLease, signLease, recordPayment, postMessage, createTicket, closeTicket, buildDisputePackage). Internal scheduler for reminders.
+#### Required
+```bash
+WALLET_PATH=./wallet.json          # Arweave wallet path
+JWT_SECRET=your-secret-key        # JWT signing secret
+```
 
- *Storage* : Arweave writes via SDK; structured metadata tags (leaseId, party, action, txType).
+#### Arweave
+```bash
+ARWEAVE_HOST=arweave.net          # Arweave gateway
+ARWEAVE_NETWORK=mainnet           # Network (mainnet/testnet)
+WALLET_PASSWORD=your-password     # Wallet password
+```
 
- *Payments* :
+#### Ethereum
+```bash
+ETHEREUM_RPC_URL=<rpc_url>        # Ethereum node RPC
+RENTAL_CONTRACT_ADDRESS=<address>  # Deployed contract address
+USDA_ADAPTER_ADDRESS=<address>     # USDA adapter contract
+```
 
-Stablecoin: USDA payment adapters; confirm tx via USDA APIs/contract events; produce receipt with tx hash and chain id.
+#### Scheduler
+```bash
+SCHEDULER_ENABLED=true             # Enable autonomous scheduler
+RENT_REMINDER_DAYS=3              # Days before rent due
+OVERDUE_NOTICE_DAYS=5             # Days after due date
+```
 
-Extensible payment interface for AR/USDC later.
+## 📡 API Reference
 
- *Indexer* : Lightweight service that reads Arweave tags to build searchable indexes for the frontend (optional for hackathon if queries are manageable).
-
-Reference timelines, rules, and bonuses that this design targets are from the official Luma and community posts
-
-5) *Data Model* (key records)
-Lease: leaseId, landlordAddr, tenantAddr, termsHash, start/end dates, rent, currency, deposit, status, signatures[], arTxId.
-
-Payment: leaseId, payer, amount, currency, chainId, txHash, confirmedAt, receiptArTxId.
-
-Message: leaseId, sender, contentHash, createdAt, arTxId.
-
-Ticket: ticketId, leaseId, title, descriptionHash, status, evidenceArTxIds[], events[], arTxId.
-
-DisputePackage: leaseId, includedArTxIds[], merkleRoot, packageArTxId.
-
-6) *API Contract* (HTTP message passing on AO)
+### Base URL
+```
 POST /agent
+```
 
-Action: createLease | signLease | recordPayment | postMessage | createTicket | updateTicket | buildDisputePackage
+### Authentication Headers
+```http
+x-sender-wallet: <arweave_wallet_address>
+x-sig: <signature>
+x-timestamp: <ISO8601_timestamp>
+```
 
-Headers: x-sender-wallet, x-sig, x-timestamp
+### Actions
 
-Body: JSON per action
+#### Create Lease
+```json
+{
+  "action": "createLease",
+  "landlordAddr": "0x123...",
+  "tenantAddr": "0x456...",
+  "terms": "base64(pdf_or_html)",
+  "rent": 1000,
+  "currency": "USDA",
+  "deposit": 2000,
+  "startDate": "2024-01-01T00:00:00Z",
+  "endDate": "2024-12-31T23:59:59Z"
+}
+```
 
-Response: { ok, leaseId/ticketId, arTxId, error? }
+#### Sign Lease
+```json
+{
+  "action": "signLease",
+  "leaseId": "uuid"
+}
+```
 
-Examples:
+#### Record Payment
+```json
+{
+  "action": "recordPayment",
+  "leaseId": "uuid",
+  "amount": 1000,
+  "currency": "USDA",
+  "chainId": "ethereum-mainnet",
+  "txHash": "0xabcd..."
+}
+```
 
-createLease: { landlordAddr, tenantAddr, terms, rent, currency: “USDA”, deposit }
+#### Post Message
+```json
+{
+  "action": "postMessage",
+  "leaseId": "uuid",
+  "content": "Message content",
+  "threadId": "optional_thread_id"
+}
+```
 
-recordPayment: { leaseId, payer, amount, currency: “USDA”, chainId, txHash }
+#### Create Maintenance Ticket
+```json
+{
+  "action": "createTicket",
+  "leaseId": "uuid",
+  "title": "Leaky faucet",
+  "description": "Kitchen faucet is leaking",
+  "priority": "medium"
+}
+```
 
-All successful mutations trigger a write to Arweave and return arTxId for user verification# rental-agent
-# rental-agent
+#### Build Dispute Package
+```json
+{
+  "action": "buildDisputePackage",
+  "leaseId": "uuid",
+  "evidenceTypes": ["lease", "payment", "message"]
+}
+```
+
+### Response Format
+```json
+{
+  "ok": true,
+  "leaseId": "uuid",
+  "arTxId": "arweave_transaction_id",
+  "timestamp": "2024-01-01T00:00:00Z"
+}
+```
+
+## 🧪 Testing
+
+### Smart Contracts
+```bash
+cd contract
+forge test
+```
+
+### AO Agent
+```bash
+cd agent
+npm test
+```
+
+### Integration Tests
+```bash
+# Run all tests with coverage
+npm run test:coverage
+```
+
+## 🚀 Deployment
+
+### Development
+```bash
+npm run dev
+```
+
+### Production
+```bash
+# Build and start
+npm start
+
+# With PM2
+pm2 start ecosystem.config.js
+```
+
+### Docker
+```bash
+docker build -t rental-agent .
+docker run -p 3000:3000 rental-agent
+```
+
+## 📊 Monitoring
+
+### Health Check
+```bash
+curl http://localhost:3000/health
+```
+
+### Status
+```bash
+curl http://localhost:3000/status
+```
+
+### Metrics
+```bash
+curl http://localhost:3000/metrics
+```
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+#### Arweave Connection Failed
+- Check `ARWEAVE_HOST` and network configuration
+- Verify wallet file exists and is valid
+- Check internet connectivity
+
+#### Signature Validation Failed
+- Ensure wallet address format is correct (43 characters)
+- Verify timestamp is within expiry window
+- Check signature generation logic
+
+#### Scheduler Not Running
+- Verify `SCHEDULER_ENABLED=true`
+- Check cron job configuration
+- Review scheduler logs
+
+### Logs
+```bash
+# View agent logs
+tail -f logs/agent.log
+
+# View error logs
+tail -f logs/error.log
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: [Wiki](link-to-wiki)
+- **Issues**: [GitHub Issues](link-to-issues)
+- **Discord**: [Community Server](link-to-discord)
+
+## 🔗 Links
+
+- **Website**: [rental-agent.com](https://rental-agent.com)
+- **Documentation**: [docs.rental-agent.com](https://docs.rental-agent.com)
+- **Smart Contracts**: [Etherscan](https://etherscan.io)
+- **Arweave**: [arweave.org](https://arweave.org)
+
+---
+
+**Built with ❤️ for the decentralized rental economy**
