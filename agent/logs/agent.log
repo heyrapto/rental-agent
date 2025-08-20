@@ -52,3 +52,4 @@
 {"level":"info","message":"Health check: http://localhost:3000/health","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:16.894Z","version":"1.0.0"}
 {"level":"info","message":"Agent endpoint: http://localhost:3000/agent","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:16.895Z","version":"1.0.0"}
 {"level":"info","message":"Status: http://localhost:3000/status","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:16.895Z","version":"1.0.0"}
+{"level":"info","message":"Received SIGINT. Starting graceful shutdown...","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:54:00.176Z","version":"1.0.0"}
