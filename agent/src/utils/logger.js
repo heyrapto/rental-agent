@@ -42,7 +42,7 @@ const logger = winston.createLogger({
     format: fileFormat,
     defaultMeta: { 
         service: 'rental-contract-ao-agent',
-        version: require('../../../package.json').version
+        version: require('../../package.json').version
     },
     transports: [
         // File transport with rotation

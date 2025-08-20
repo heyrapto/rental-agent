@@ -1,0 +1,54 @@
+{"level":"info","message":"Scheduled job: rent-reminders with schedule: 0 9 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.595Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: overdue-notices with schedule: 0 14 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.599Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: deposit-checks with schedule: 0 */6 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.600Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: sla-monitoring with schedule: 0 * * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.603Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: lease-expiry with schedule: 0 10 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.604Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: maintenance-followup with schedule: 0 */4 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.604Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: dispute-expiry with schedule: 0 11 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.607Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: health-checks with schedule: */30 * * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.609Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: data-backup with schedule: 0 2 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.611Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: metrics-collection with schedule: */15 * * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.614Z","version":"1.0.0"}
+{"level":"info","message":"Scheduler initialized successfully","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.614Z","version":"1.0.0"}
+{"level":"info","message":"Autonomous scheduler initialized","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.615Z","version":"1.0.0"}
+{"level":"warn","message":"Failed to load wallet, running in read-only mode","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:42.617Z","version":"1.0.0"}
+{"height":1736816,"level":"info","message":"Arweave network info","peers":1051,"service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:49:44.786Z","version":5}
+{"level":"info","message":"Scheduled job: rent-reminders with schedule: 0 9 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.358Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: overdue-notices with schedule: 0 14 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.377Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: deposit-checks with schedule: 0 */6 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.378Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: sla-monitoring with schedule: 0 * * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.381Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: lease-expiry with schedule: 0 10 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.388Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: maintenance-followup with schedule: 0 */4 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.391Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: dispute-expiry with schedule: 0 11 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.393Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: health-checks with schedule: */30 * * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.427Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: data-backup with schedule: 0 2 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.428Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: metrics-collection with schedule: */15 * * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.481Z","version":"1.0.0"}
+{"level":"info","message":"Scheduler initialized successfully","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.484Z","version":"1.0.0"}
+{"level":"info","message":"Autonomous scheduler initialized","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.484Z","version":"1.0.0"}
+{"level":"warn","message":"Failed to load wallet, running in read-only mode","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:31.488Z","version":"1.0.0"}
+{"height":1736816,"level":"info","message":"Arweave network info","peers":1051,"service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:32.837Z","version":5}
+{"host":"arweave.net","level":"info","message":"Arweave service initialized successfully","network":"mainnet","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:32.838Z","version":"1.0.0"}
+{"level":"info","message":"Arweave service initialized","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:32.838Z","version":"1.0.0"}
+{"level":"info","message":"Rental Contract AO Agent started on port 3001","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:32.844Z","version":"1.0.0"}
+{"level":"info","message":"Health check: http://localhost:3001/health","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:32.845Z","version":"1.0.0"}
+{"level":"info","message":"Agent endpoint: http://localhost:3001/agent","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:32.845Z","version":"1.0.0"}
+{"level":"info","message":"Status: http://localhost:3001/status","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:50:32.845Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: rent-reminders with schedule: 0 9 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.376Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: overdue-notices with schedule: 0 14 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.392Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: deposit-checks with schedule: 0 */6 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.393Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: sla-monitoring with schedule: 0 * * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.394Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: lease-expiry with schedule: 0 10 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.560Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: maintenance-followup with schedule: 0 */4 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.571Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: dispute-expiry with schedule: 0 11 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.573Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: health-checks with schedule: */30 * * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.579Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: data-backup with schedule: 0 2 * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.580Z","version":"1.0.0"}
+{"level":"info","message":"Scheduled job: metrics-collection with schedule: */15 * * * *","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.588Z","version":"1.0.0"}
+{"level":"info","message":"Scheduler initialized successfully","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.589Z","version":"1.0.0"}
+{"level":"info","message":"Autonomous scheduler initialized","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.590Z","version":"1.0.0"}
+{"level":"warn","message":"Failed to load wallet, running in read-only mode","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:15.591Z","version":"1.0.0"}
+{"height":1736816,"level":"info","message":"Arweave network info","peers":749,"service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:16.860Z","version":5}
+{"host":"arweave.net","level":"info","message":"Arweave service initialized successfully","network":"mainnet","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:16.862Z","version":"1.0.0"}
+{"level":"info","message":"Arweave service initialized","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:16.876Z","version":"1.0.0"}
+{"level":"info","message":"Rental Contract AO Agent started on port 3000","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:16.893Z","version":"1.0.0"}
+{"level":"info","message":"Health check: http://localhost:3000/health","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:16.894Z","version":"1.0.0"}
+{"level":"info","message":"Agent endpoint: http://localhost:3000/agent","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:16.895Z","version":"1.0.0"}
+{"level":"info","message":"Status: http://localhost:3000/status","service":"rental-contract-ao-agent","timestamp":"2025-08-20T21:53:16.895Z","version":"1.0.0"}

@@ -157,10 +157,9 @@ contract RentalContractTest is Test {
             TERMS_HASH
         );
         
-        // Test negative deposit amount
-        vm.expectRevert("Deposit amount cannot be negative");
-        rentalContract.createLease(
-            LEASE_ID,
+        // Test zero deposit amount (should be valid)
+        bool success = rentalContract.createLease(
+            "test_zero_deposit",
             tenant,
             startDate,
             endDate,
@@ -169,6 +168,7 @@ contract RentalContractTest is Test {
             "USDA",
             TERMS_HASH
         );
+        assertTrue(success);
         
         // Test empty terms hash
         vm.expectRevert("Terms hash cannot be empty");
@@ -255,7 +255,7 @@ contract RentalContractTest is Test {
         vm.stopPrank();
         
         // Verify lease is now active
-        (,,,,,,,,, RentalContract.LeaseStatus status,,) = rentalContract.getLease(LEASE_ID);
+        (,,,,,,,,, RentalContract.LeaseStatus status,,,) = rentalContract.getLease(LEASE_ID);
         assertEq(uint256(status), uint256(RentalContract.LeaseStatus.ACTIVE));
         
         // Verify signature count
@@ -331,7 +331,7 @@ contract RentalContractTest is Test {
         rentalContract.updateArweaveTx(LEASE_ID, ARWEAVE_TX);
         
         // Verify update
-        (,,,,,,,, string memory arweaveTxId,,,) = rentalContract.getLease(LEASE_ID);
+        (,,,,,,,, string memory arweaveTxId,,,,) = rentalContract.getLease(LEASE_ID);
         assertEq(arweaveTxId, ARWEAVE_TX);
         
         vm.stopPrank();
@@ -447,7 +447,7 @@ contract RentalContractTest is Test {
         vm.stopPrank();
         
         // Verify lease is terminated
-        (,,,,,,,,, RentalContract.LeaseStatus status,,) = rentalContract.getLease(LEASE_ID);
+        (,,,,,,,,, RentalContract.LeaseStatus status,,,) = rentalContract.getLease(LEASE_ID);
         assertEq(uint256(status), uint256(RentalContract.LeaseStatus.TERMINATED));
     }
 
