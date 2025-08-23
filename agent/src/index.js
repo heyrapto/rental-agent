@@ -26,7 +26,7 @@ const { arweaveService } = require('./services/arweaveService');
 class RentalContractAOAgent {
     constructor() {
         this.app = express();
-        this.port = config.PORT || 3000;
+        this.port = config.PORT || 6000;
         this.isShuttingDown = false;
         
         this.setupMiddleware();

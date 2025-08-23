@@ -6,7 +6,7 @@ require('dotenv').config();
 
 const config = {
     // Server configuration
-    PORT: process.env.PORT || 3000,
+    PORT: process.env.PORT || 6000,
     NODE_ENV: process.env.NODE_ENV || 'development',
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['*'],
 
@@ -25,13 +25,13 @@ const config = {
     // Security configuration
     JWT_SECRET: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
     JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
-    SIGNATURE_EXPIRY: parseInt(process.env.SIGNATURE_EXPIRY) || 300000, // 5 minutes in ms
+    SIGNATURE_EXPIRY: parseInt(process.env.SIGNATURE_EXPIRY) || 86400000, // 24hrs minutes in ms
 
     // Database configuration (for local caching)
     DB_PATH: process.env.DB_PATH || './data/agent.db',
 
     // Scheduler configuration
-    SCHEDULER_ENABLED: process.env.SCHEDULER_ENABLED !== 'false',
+    SCHEDULER_ENABLED: true,
     RENT_REMINDER_DAYS: parseInt(process.env.RENT_REMINDER_DAYS) || 3,
     OVERDUE_NOTICE_DAYS: parseInt(process.env.OVERDUE_NOTICE_DAYS) || 5,
     DEPOSIT_CHECK_INTERVAL: parseInt(process.env.DEPOSIT_CHECK_INTERVAL) || 24, // hours
@@ -74,7 +74,7 @@ const config = {
     MAINTENANCE_SLA_HOURS: parseInt(process.env.MAINTENANCE_SLA_HOURS) || 24,
 
     // Notification configuration
-    NOTIFICATION_ENABLED: process.env.NOTIFICATION_ENABLED !== 'false',
+    NOTIFICATION_ENABLED: true,
     EMAIL_SMTP_HOST: process.env.EMAIL_SMTP_HOST,
     EMAIL_SMTP_PORT: parseInt(process.env.EMAIL_SMTP_PORT) || 587,
     EMAIL_USERNAME: process.env.EMAIL_USERNAME,
@@ -91,9 +91,9 @@ const config = {
     BACKUP_RETENTION_DAYS: parseInt(process.env.BACKUP_RETENTION_DAYS) || 30,
 
     // Development configuration
-    DEBUG_MODE: process.env.DEBUG_MODE === 'true',
-    MOCK_ARWEAVE: process.env.MOCK_ARWEAVE === 'true',
-    MOCK_ETHEREUM: process.env.MOCK_ETHEREUM === 'true'
+    DEBUG_MODE: true,
+    MOCK_ARWEAVE: true,
+    MOCK_ETHEREUM: true
 };
 
 // Validation

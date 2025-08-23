@@ -129,6 +129,17 @@ const validateSignature = (req, walletAddress, signature) => {
     try {
         // Create the message to verify
         const message = createSignatureMessage(req);
+
+        const expected = crypto
+        .createHmac("sha256", "mock-secret")
+        .update(message + walletAddress)
+        .digest("hex");
+
+    console.log("---- SIGNATURE DEBUG ----");
+    console.log("Message:", message);
+    console.log("Expected:", expected);
+    console.log("Got:", signature);
+    console.log("-------------------------");
         
         // For now, we'll use a simplified validation
         // In production, this should use proper Arweave signature verification
